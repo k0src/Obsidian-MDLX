@@ -76,6 +76,36 @@ export class Parser {
 		}
 
 		if (
+			this.check(TokenType.GLOBAL) &&
+			this.peekNext()?.type === TokenType.EQUALS
+		) {
+			const nameToken = this.peek();
+			const name = nameToken.value;
+
+			this.advance();
+			this.advance();
+
+			if (this.check(TokenType.LPAREN)) {
+				return this.parseFunctionDefinition(
+					name,
+					nameToken.line,
+					nameToken.column,
+					true
+				);
+			} else {
+				const value = this.parseExpression();
+				return {
+					type: "Variable",
+					name,
+					value,
+					isGlobal: true,
+					line: nameToken.line,
+					column: nameToken.column,
+				};
+			}
+		}
+
+		if (
 			this.check(TokenType.IDENTIFIER) &&
 			this.peekNext()?.type === TokenType.EQUALS
 		) {
@@ -89,7 +119,8 @@ export class Parser {
 				return this.parseFunctionDefinition(
 					name,
 					nameToken.line,
-					nameToken.column
+					nameToken.column,
+					false
 				);
 			} else {
 				const value = this.parseExpression();
@@ -97,6 +128,7 @@ export class Parser {
 					type: "Variable",
 					name,
 					value,
+					isGlobal: false,
 					line: nameToken.line,
 					column: nameToken.column,
 				};
@@ -109,7 +141,8 @@ export class Parser {
 	private parseFunctionDefinition(
 		name: string,
 		line: number,
-		column: number
+		column: number,
+		isGlobal: boolean = false
 	): FunctionNode {
 		const params = this.parseParameterList();
 
@@ -127,6 +160,7 @@ export class Parser {
 			params,
 			styles,
 			body,
+			isGlobal,
 			line,
 			column,
 		};
@@ -494,7 +528,10 @@ export class Parser {
 			const operator = this.advance();
 			this.skipNewlines();
 
-			if (!this.check(TokenType.IDENTIFIER)) {
+			if (
+				!this.check(TokenType.IDENTIFIER) &&
+				!this.check(TokenType.GLOBAL)
+			) {
 				throw new ParseError(
 					`Expected identifier after ${operator.value}`,
 					this.peek().line,
@@ -621,6 +658,25 @@ export class Parser {
 				type: "String",
 				value: token.value,
 				isMarkdown: false,
+				line: token.line,
+				column: token.column,
+			};
+		}
+
+		if (this.check(TokenType.GLOBAL)) {
+			const token = this.advance();
+
+			if (this.check(TokenType.LPAREN)) {
+				return this.parseFunctionCall(
+					token.value,
+					token.line,
+					token.column
+				);
+			}
+
+			return {
+				type: "Identifier",
+				name: token.value,
 				line: token.line,
 				column: token.column,
 			};

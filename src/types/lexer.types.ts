@@ -14,6 +14,7 @@ export enum TokenType {
 	NAME = "NAME",
 
 	AT = "AT",
+	GLOBAL = "GLOBAL",
 	EQUALS = "EQUALS",
 	PLUS = "PLUS",
 	MINUS = "MINUS",

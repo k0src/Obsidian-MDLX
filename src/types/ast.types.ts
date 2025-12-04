@@ -69,6 +69,7 @@ export interface VariableNode extends ASTNode {
 	type: "Variable";
 	name: string;
 	value: ExpressionNode;
+	isGlobal: boolean;
 }
 
 export interface FunctionNode extends ASTNode {
@@ -77,6 +78,7 @@ export interface FunctionNode extends ASTNode {
 	params: string[];
 	styles: string[];
 	body: StatementNode[];
+	isGlobal: boolean;
 }
 
 export interface FunctionCallNode extends ASTNode {

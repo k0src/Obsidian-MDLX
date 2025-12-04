@@ -71,8 +71,20 @@ export class Lexer {
 			return this.readNumber(startLine, startColumn);
 		}
 
+		if (char === "~") {
+			if (this.peekNext() === "@") {
+				this.advance();
+				return this.readIdentifier(startLine, startColumn, true);
+			}
+			throw new LexerError(
+				`Unexpected character '~', did you mean '~@' for global variable?`,
+				startLine,
+				startColumn
+			);
+		}
+
 		if (char === "@") {
-			return this.readIdentifier(startLine, startColumn);
+			return this.readIdentifier(startLine, startColumn, false);
 		}
 
 		if (char === "+") {
@@ -555,13 +567,24 @@ export class Lexer {
 		};
 	}
 
-	private readIdentifier(startLine: number, startColumn: number): Token {
+	private readIdentifier(
+		startLine: number,
+		startColumn: number,
+		isGlobal: boolean = false
+	): Token {
 		this.advance();
 
 		if (
 			this.isAtEnd() ||
 			(!this.isAlpha(this.peek()) && this.peek() !== "_")
 		) {
+			if (isGlobal) {
+				throw new LexerError(
+					"Expected identifier after ~@",
+					startLine,
+					startColumn
+				);
+			}
 			return {
 				type: TokenType.AT,
 				value: "@",
@@ -582,7 +605,7 @@ export class Lexer {
 		}
 
 		return {
-			type: TokenType.IDENTIFIER,
+			type: isGlobal ? TokenType.GLOBAL : TokenType.IDENTIFIER,
 			value,
 			line: startLine,
 			column: startColumn,

@@ -7,6 +7,7 @@ import { DynamicStyleManager } from "./src/styleManager";
 
 export default class LayoutToolsPlugin extends Plugin {
 	private contexts: Map<string, ExecutionContext> = new Map();
+	private globalContext: ExecutionContext = new ExecutionContext();
 	private processingQueues: Map<string, Promise<void>> = new Map();
 	private renderer: Renderer;
 	private styleManager: DynamicStyleManager;
@@ -80,7 +81,9 @@ export default class LayoutToolsPlugin extends Plugin {
 
 	private getContextForFile(sourcePath: string): ExecutionContext {
 		if (!this.contexts.has(sourcePath)) {
-			this.contexts.set(sourcePath, new ExecutionContext());
+			const fileContext = new ExecutionContext();
+			fileContext.setGlobalContext(this.globalContext);
+			this.contexts.set(sourcePath, fileContext);
 		}
 		return this.contexts.get(sourcePath)!;
 	}

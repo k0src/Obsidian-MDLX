@@ -44,13 +44,27 @@ export class ExecutionContext {
 	private variables: Map<string, EvaluatedValue> = new Map();
 	private functions: Map<string, FunctionDefinition> = new Map();
 	private parent?: ExecutionContext;
+	private globalContext?: ExecutionContext;
 
-	constructor(parent?: ExecutionContext) {
+	constructor(parent?: ExecutionContext, globalContext?: ExecutionContext) {
 		this.parent = parent;
+		this.globalContext = globalContext;
 	}
 
-	setVariable(name: string, value: EvaluatedValue): void {
-		this.variables.set(name, value);
+	setGlobalContext(global: ExecutionContext): void {
+		this.globalContext = global;
+	}
+
+	setVariable(
+		name: string,
+		value: EvaluatedValue,
+		isGlobal: boolean = false
+	): void {
+		if (isGlobal && this.globalContext) {
+			this.globalContext.variables.set(name, value);
+		} else {
+			this.variables.set(name, value);
+		}
 	}
 
 	getVariable(name: string): EvaluatedValue | undefined {
@@ -59,18 +73,34 @@ export class ExecutionContext {
 			return value;
 		}
 
+		if (this.globalContext) {
+			const globalValue = this.globalContext.variables.get(name);
+			if (globalValue !== undefined) {
+				return globalValue;
+			}
+		}
+
 		return this.parent?.getVariable(name);
 	}
 
 	hasVariable(name: string): boolean {
 		return (
 			this.variables.has(name) ||
+			(this.globalContext?.variables.has(name) ?? false) ||
 			(this.parent?.hasVariable(name) ?? false)
 		);
 	}
 
-	setFunction(name: string, func: FunctionDefinition): void {
-		this.functions.set(name, func);
+	setFunction(
+		name: string,
+		func: FunctionDefinition,
+		isGlobal: boolean = false
+	): void {
+		if (isGlobal && this.globalContext) {
+			this.globalContext.functions.set(name, func);
+		} else {
+			this.functions.set(name, func);
+		}
 	}
 
 	getFunction(name: string): FunctionDefinition | undefined {
@@ -79,12 +109,20 @@ export class ExecutionContext {
 			return func;
 		}
 
+		if (this.globalContext) {
+			const globalFunc = this.globalContext.functions.get(name);
+			if (globalFunc !== undefined) {
+				return globalFunc;
+			}
+		}
+
 		return this.parent?.getFunction(name);
 	}
 
 	hasFunction(name: string): boolean {
 		return (
 			this.functions.has(name) ||
+			(this.globalContext?.functions.has(name) ?? false) ||
 			(this.parent?.hasFunction(name) ?? false)
 		);
 	}
@@ -166,7 +204,7 @@ export class Evaluator {
 
 	private evaluateVariableDeclaration(node: VariableNode): null {
 		const value = this.evaluateExpression(node.value);
-		this.context.setVariable(node.name, value);
+		this.context.setVariable(node.name, value, node.isGlobal);
 		return null;
 	}
 
@@ -494,11 +532,15 @@ export class Evaluator {
 	}
 
 	private evaluateFunctionDefinition(node: FunctionNode): null {
-		this.context.setFunction(node.name, {
-			params: node.params,
-			styles: node.styles,
-			body: node.body,
-		});
+		this.context.setFunction(
+			node.name,
+			{
+				params: node.params,
+				styles: node.styles,
+				body: node.body,
+			},
+			node.isGlobal
+		);
 		return null;
 	}
 
