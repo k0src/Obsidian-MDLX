@@ -10,6 +10,14 @@ export interface StringNode extends ASTNode {
 	isMarkdown: boolean;
 }
 
+export interface TemplateStringNode extends ASTNode {
+	type: "TemplateString";
+	parts: Array<
+		| { type: "text"; value: string }
+		| { type: "expression"; expr: ExpressionNode }
+	>;
+}
+
 export interface NumberNode extends ASTNode {
 	type: "Number";
 	value: number;
@@ -73,6 +81,7 @@ export interface BlockNode extends ASTNode {
 
 export type ExpressionNode =
 	| StringNode
+	| TemplateStringNode
 	| NumberNode
 	| IdentifierNode
 	| ConcatenationNode

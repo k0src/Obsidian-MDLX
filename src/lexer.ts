@@ -1,4 +1,9 @@
-import { Token, TokenType, LexerError } from "./types/lexer.types";
+import {
+	Token,
+	TokenType,
+	LexerError,
+	TemplatePart,
+} from "./types/lexer.types";
 
 export class Lexer {
 	private source: string;
@@ -220,6 +225,9 @@ export class Lexer {
 		}
 
 		let value = "";
+		const parts: TemplatePart[] = [];
+		let hasTemplates = false;
+
 		while (!this.isAtEnd() && this.peek() !== '"') {
 			if (this.peek() === "\n") {
 				throw new LexerError(
@@ -236,6 +244,49 @@ export class Lexer {
 					value += this.getEscapedChar(escaped);
 					this.advance();
 				}
+			} else if (this.peek() === "<" && this.peekNext() !== " ") {
+				if (value.length > 0) {
+					parts.push({ type: "text", value });
+					value = "";
+				}
+				hasTemplates = true;
+
+				this.advance();
+				let exprSource = "";
+				let depth = 1;
+
+				while (!this.isAtEnd() && depth > 0) {
+					if (this.peek() === "<") {
+						depth++;
+						exprSource += this.peek();
+						this.advance();
+					} else if (this.peek() === ">") {
+						depth--;
+						if (depth > 0) {
+							exprSource += this.peek();
+						}
+						this.advance();
+					} else if (this.peek() === "\n") {
+						throw new LexerError(
+							"Unterminated template expression in string",
+							startLine,
+							startColumn
+						);
+					} else {
+						exprSource += this.peek();
+						this.advance();
+					}
+				}
+
+				if (depth !== 0) {
+					throw new LexerError(
+						"Unterminated template expression",
+						startLine,
+						startColumn
+					);
+				}
+
+				parts.push({ type: "expression", value: exprSource.trim() });
 			} else {
 				value += this.peek();
 				this.advance();
@@ -248,6 +299,20 @@ export class Lexer {
 
 		this.advance();
 
+		if (hasTemplates) {
+			if (value.length > 0) {
+				parts.push({ type: "text", value });
+			}
+
+			return {
+				type: TokenType.TEMPLATE_STRING,
+				value: "",
+				line: startLine,
+				column: startColumn,
+				templateParts: parts,
+			};
+		}
+
 		return {
 			type: TokenType.STRING,
 			value,
@@ -258,6 +323,8 @@ export class Lexer {
 
 	private readMultilineString(startLine: number, startColumn: number): Token {
 		let value = "";
+		const parts: TemplatePart[] = [];
+		let hasTemplates = false;
 
 		while (!this.isAtEnd()) {
 			if (
@@ -268,6 +335,21 @@ export class Lexer {
 				this.advance();
 				this.advance();
 				this.advance();
+
+				if (hasTemplates) {
+					if (value.length > 0) {
+						parts.push({ type: "text", value });
+					}
+
+					return {
+						type: TokenType.TEMPLATE_STRING,
+						value: "",
+						line: startLine,
+						column: startColumn,
+						templateParts: parts,
+					};
+				}
+
 				return {
 					type: TokenType.STRING,
 					value,
@@ -276,8 +358,54 @@ export class Lexer {
 				};
 			}
 
-			value += this.peek();
-			this.advance();
+			if (this.peek() === "\\") {
+				this.advance();
+				if (!this.isAtEnd()) {
+					const escaped = this.peek();
+					value += this.getEscapedChar(escaped);
+					this.advance();
+				}
+			} else if (this.peek() === "<" && this.peekNext() !== " ") {
+				if (value.length > 0) {
+					parts.push({ type: "text", value });
+					value = "";
+				}
+				hasTemplates = true;
+
+				this.advance();
+				let exprSource = "";
+				let depth = 1;
+
+				while (!this.isAtEnd() && depth > 0) {
+					if (this.peek() === "<") {
+						depth++;
+						exprSource += this.peek();
+						this.advance();
+					} else if (this.peek() === ">") {
+						depth--;
+						if (depth > 0) {
+							exprSource += this.peek();
+						}
+						this.advance();
+					} else {
+						exprSource += this.peek();
+						this.advance();
+					}
+				}
+
+				if (depth !== 0) {
+					throw new LexerError(
+						"Unterminated template expression",
+						startLine,
+						startColumn
+					);
+				}
+
+				parts.push({ type: "expression", value: exprSource.trim() });
+			} else {
+				value += this.peek();
+				this.advance();
+			}
 		}
 
 		throw new LexerError(
@@ -316,7 +444,7 @@ export class Lexer {
 		this.advance();
 
 		return {
-			type: TokenType.LITERAL,
+			type: TokenType.LITERAL_STRING,
 			value,
 			line: startLine,
 			column: startColumn,
@@ -415,6 +543,10 @@ export class Lexer {
 				return '"';
 			case "`":
 				return "`";
+			case "<":
+				return "<";
+			case ">":
+				return ">";
 			default:
 				return char;
 		}

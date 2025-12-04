@@ -1,6 +1,7 @@
 export enum TokenType {
 	STRING = "STRING",
-	LITERAL = "LITERAL",
+	TEMPLATE_STRING = "TEMPLATE_STRING",
+	LITERAL_STRING = "LITERAL_STRING",
 	NUMBER = "NUMBER",
 
 	IDENTIFIER = "IDENTIFIER",
@@ -28,11 +29,17 @@ export enum TokenType {
 	EOF = "EOF",
 }
 
+export interface TemplatePart {
+	type: "text" | "expression";
+	value: string;
+}
+
 export interface Token {
 	type: TokenType;
 	value: string;
 	line: number;
 	column: number;
+	templateParts?: TemplatePart[];
 }
 
 export class LexerError extends Error {

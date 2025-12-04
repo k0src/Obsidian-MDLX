@@ -8,6 +8,7 @@ import {
 	AnonymousFunctionNode,
 	BlockNode,
 	StringNode,
+	TemplateStringNode,
 	NumberNode,
 	IdentifierNode,
 	ConcatenationNode,
@@ -38,13 +39,12 @@ export interface FunctionDefinition {
 export class ExecutionContext {
 	private variables: Map<string, EvaluatedValue> = new Map();
 	private functions: Map<string, FunctionDefinition> = new Map();
-	private parent?: ExecutionContext; // For nested scopes
+	private parent?: ExecutionContext;
 
 	constructor(parent?: ExecutionContext) {
 		this.parent = parent;
 	}
 
-	// Variable methods
 	setVariable(name: string, value: EvaluatedValue): void {
 		this.variables.set(name, value);
 	}
@@ -54,7 +54,7 @@ export class ExecutionContext {
 		if (value !== undefined) {
 			return value;
 		}
-		// Check parent scope
+
 		return this.parent?.getVariable(name);
 	}
 
@@ -65,7 +65,6 @@ export class ExecutionContext {
 		);
 	}
 
-	// Function methods
 	setFunction(name: string, func: FunctionDefinition): void {
 		this.functions.set(name, func);
 	}
@@ -75,7 +74,7 @@ export class ExecutionContext {
 		if (func !== undefined) {
 			return func;
 		}
-		// Check parent scope
+
 		return this.parent?.getFunction(name);
 	}
 
@@ -86,13 +85,11 @@ export class ExecutionContext {
 		);
 	}
 
-	// Clear all
 	clear(): void {
 		this.variables.clear();
 		this.functions.clear();
 	}
 
-	// For debugging
 	getAllVariables(): Map<string, EvaluatedValue> {
 		return new Map(this.variables);
 	}
@@ -137,11 +134,13 @@ export class Evaluator {
 					statement as FunctionNode
 				);
 			case "String":
+			case "TemplateString":
 			case "Number":
 			case "Identifier":
 			case "Concatenation":
 			case "BinaryOp":
 			case "UnaryOp":
+			case "FunctionCall":
 			case "AnonymousFunction":
 			case "Block":
 				return this.evaluateExpression(statement as ExpressionNode);
@@ -164,6 +163,8 @@ export class Evaluator {
 		switch (expr.type) {
 			case "String":
 				return this.evaluateString(expr as StringNode);
+			case "TemplateString":
+				return this.evaluateTemplateString(expr as TemplateStringNode);
 			case "Number":
 				return this.evaluateNumber(expr as NumberNode);
 			case "Identifier":
@@ -191,10 +192,37 @@ export class Evaluator {
 		}
 	}
 
+	private convertCodeBlocks(text: string): string {
+		return text.replace(/:::([a-zA-Z0-9]*)/g, "```$1");
+	}
+
 	private evaluateString(node: StringNode): EvaluatedValue {
+		const value = node.isMarkdown
+			? this.convertCodeBlocks(node.value)
+			: node.value;
 		return {
-			value: node.value,
+			value,
 			isMarkdown: node.isMarkdown,
+		};
+	}
+
+	private evaluateTemplateString(node: TemplateStringNode): EvaluatedValue {
+		let result = "";
+
+		for (const part of node.parts) {
+			if (part.type === "text") {
+				result += part.value;
+			} else {
+				const value = this.evaluateExpression(part.expr);
+				result += String(value.value);
+			}
+		}
+
+		result = this.convertCodeBlocks(result);
+
+		return {
+			value: result,
+			isMarkdown: true,
 		};
 	}
 
@@ -221,7 +249,9 @@ export class Evaluator {
 
 	private evaluateConcatenation(node: ConcatenationNode): EvaluatedValue {
 		const parts = node.parts.map((part) => this.evaluateExpression(part));
+
 		const concatenated = parts.map((p) => p.value).join("");
+
 		const isMarkdown = parts.some((p) => p.isMarkdown);
 
 		return {
@@ -244,6 +274,7 @@ export class Evaluator {
 					isMarkdown: left.isMarkdown || right.isMarkdown,
 				};
 			}
+
 			return {
 				value: (left.value as number) + (right.value as number),
 				isMarkdown: true,
@@ -306,6 +337,7 @@ export class Evaluator {
 		}
 
 		const currentNum = this.toNumber(current.value, node.line, node.column);
+
 		const newValue =
 			node.operator === "++" ? currentNum + 1 : currentNum - 1;
 
@@ -360,13 +392,13 @@ export class Evaluator {
 		}
 
 		const argValues = node.args.map((arg) => this.evaluateExpression(arg));
+
 		return this.executeFunction(funcDef, argValues, node.line, node.column);
 	}
 
 	private evaluateAnonymousFunction(
 		node: AnonymousFunctionNode
 	): EvaluatedValue {
-		// Evaluate the arguments
 		const argValues = node.args.map((arg) => this.evaluateExpression(arg));
 
 		const concatenated = argValues.map((v) => v.value).join(" ");
@@ -380,7 +412,6 @@ export class Evaluator {
 	}
 
 	private evaluateBlock(node: BlockNode): EvaluatedValue {
-		// Evaluate all statements
 		const results: EvaluatedValue[] = [];
 		for (const stmt of node.body) {
 			const result = this.evaluateStatement(stmt);
@@ -422,10 +453,8 @@ export class Evaluator {
 		line: number,
 		column: number
 	): EvaluatedValue {
-		// Create a new scope
 		const funcContext = new ExecutionContext(this.context);
 
-		// Bind parameters to arguments
 		for (let i = 0; i < funcDef.params.length; i++) {
 			const paramName = funcDef.params[i];
 			const argValue = args[i];
@@ -441,8 +470,6 @@ export class Evaluator {
 			funcContext.setVariable(paramName, argValue);
 		}
 
-		// Add implicit @content parameter
-		// @content gets the first argument by default or empty string
 		if (!funcContext.hasVariable("@content")) {
 			funcContext.setVariable(
 				"@content",

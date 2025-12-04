@@ -9,6 +9,7 @@ import {
 	AnonymousFunctionNode,
 	BlockNode,
 	StringNode,
+	TemplateStringNode,
 	NumberNode,
 	IdentifierNode,
 	ConcatenationNode,
@@ -16,6 +17,7 @@ import {
 	UnaryOpNode,
 	ParseError,
 } from "./types/ast.types";
+import { Lexer } from "./lexer";
 
 export class Parser {
 	private tokens: Token[];
@@ -314,7 +316,12 @@ export class Parser {
 			};
 		}
 
-		if (this.check(TokenType.LITERAL)) {
+		if (this.check(TokenType.TEMPLATE_STRING)) {
+			const token = this.advance();
+			return this.parseTemplateString(token);
+		}
+
+		if (this.check(TokenType.LITERAL_STRING)) {
 			const token = this.advance();
 			return {
 				type: "String",
@@ -368,6 +375,37 @@ export class Parser {
 			token.line,
 			token.column
 		);
+	}
+
+	private parseTemplateString(token: Token): TemplateStringNode {
+		const parts: TemplateStringNode["parts"] = [];
+
+		if (!token.templateParts) {
+			throw new ParseError(
+				"Template string token missing parts",
+				token.line,
+				token.column
+			);
+		}
+
+		for (const part of token.templateParts) {
+			if (part.type === "text") {
+				parts.push({ type: "text", value: part.value });
+			} else {
+				const exprLexer = new Lexer(part.value);
+				const exprTokens = exprLexer.tokenize();
+				const exprParser = new Parser(exprTokens);
+				const expr = exprParser.parseExpression();
+				parts.push({ type: "expression", expr });
+			}
+		}
+
+		return {
+			type: "TemplateString",
+			parts,
+			line: token.line,
+			column: token.column,
+		};
 	}
 
 	private parseFunctionCall(
