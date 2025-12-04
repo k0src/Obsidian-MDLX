@@ -23,6 +23,11 @@ export interface NumberNode extends ASTNode {
 	value: number;
 }
 
+export interface BooleanNode extends ASTNode {
+	type: "Boolean";
+	value: boolean;
+}
+
 export interface IdentifierNode extends ASTNode {
 	type: "Identifier";
 	name: string;
@@ -35,15 +40,28 @@ export interface ConcatenationNode extends ASTNode {
 
 export interface BinaryOpNode extends ASTNode {
 	type: "BinaryOp";
-	operator: "+" | "-" | "*" | "/" | "%";
+	operator:
+		| "+"
+		| "-"
+		| "*"
+		| "/"
+		| "%"
+		| "=="
+		| "!="
+		| "<"
+		| "<="
+		| ">"
+		| ">="
+		| "&&"
+		| "||";
 	left: ExpressionNode;
 	right: ExpressionNode;
 }
 
 export interface UnaryOpNode extends ASTNode {
 	type: "UnaryOp";
-	operator: "++" | "--";
-	operand: IdentifierNode;
+	operator: "++" | "--" | "!" | "-";
+	operand: ExpressionNode;
 	prefix: boolean;
 }
 
@@ -79,10 +97,19 @@ export interface BlockNode extends ASTNode {
 	styles: string[];
 }
 
+export interface IfNode extends ASTNode {
+	type: "If";
+	condition: ExpressionNode;
+	then: StatementNode[];
+	elseIfs: Array<{ condition: ExpressionNode; then: StatementNode[] }>;
+	else?: StatementNode[];
+}
+
 export type ExpressionNode =
 	| StringNode
 	| TemplateStringNode
 	| NumberNode
+	| BooleanNode
 	| IdentifierNode
 	| ConcatenationNode
 	| BinaryOpNode
@@ -91,7 +118,11 @@ export type ExpressionNode =
 	| AnonymousFunctionNode
 	| BlockNode;
 
-export type StatementNode = VariableNode | FunctionNode | ExpressionNode;
+export type StatementNode =
+	| VariableNode
+	| FunctionNode
+	| IfNode
+	| ExpressionNode;
 
 export interface ProgramNode extends ASTNode {
 	type: "Program";

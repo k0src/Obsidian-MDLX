@@ -4,12 +4,14 @@ import {
 	ExpressionNode,
 	VariableNode,
 	FunctionNode,
+	IfNode,
 	FunctionCallNode,
 	AnonymousFunctionNode,
 	BlockNode,
 	StringNode,
 	TemplateStringNode,
 	NumberNode,
+	BooleanNode,
 	IdentifierNode,
 	ConcatenationNode,
 	BinaryOpNode,
@@ -24,7 +26,7 @@ export class RuntimeError extends Error {
 }
 
 export interface EvaluatedValue {
-	value: string | number;
+	value: string | number | boolean;
 	isMarkdown: boolean;
 	styles?: string[];
 	children?: EvaluatedValue[];
@@ -133,9 +135,12 @@ export class Evaluator {
 				return this.evaluateFunctionDefinition(
 					statement as FunctionNode
 				);
+			case "If":
+				return this.evaluateIfStatement(statement as IfNode);
 			case "String":
 			case "TemplateString":
 			case "Number":
+			case "Boolean":
 			case "Identifier":
 			case "Concatenation":
 			case "BinaryOp":
@@ -167,6 +172,8 @@ export class Evaluator {
 				return this.evaluateTemplateString(expr as TemplateStringNode);
 			case "Number":
 				return this.evaluateNumber(expr as NumberNode);
+			case "Boolean":
+				return this.evaluateBoolean(expr as BooleanNode);
 			case "Identifier":
 				return this.evaluateIdentifier(expr as IdentifierNode);
 			case "Concatenation":
@@ -233,6 +240,13 @@ export class Evaluator {
 		};
 	}
 
+	private evaluateBoolean(node: BooleanNode): EvaluatedValue {
+		return {
+			value: node.value,
+			isMarkdown: false,
+		};
+	}
+
 	private evaluateIdentifier(node: IdentifierNode): EvaluatedValue {
 		const value = this.context.getVariable(node.name);
 
@@ -261,6 +275,64 @@ export class Evaluator {
 	}
 
 	private evaluateBinaryOp(node: BinaryOpNode): EvaluatedValue {
+		if (["==", "!=", "<", "<=", ">", ">="].includes(node.operator)) {
+			const left = this.evaluateExpression(node.left);
+			const right = this.evaluateExpression(node.right);
+
+			let result: boolean;
+			switch (node.operator) {
+				case "==":
+					result = left.value === right.value;
+					break;
+				case "!=":
+					result = left.value !== right.value;
+					break;
+				case "<":
+					result = (left.value as number) < (right.value as number);
+					break;
+				case "<=":
+					result = (left.value as number) <= (right.value as number);
+					break;
+				case ">":
+					result = (left.value as number) > (right.value as number);
+					break;
+				case ">=":
+					result = (left.value as number) >= (right.value as number);
+					break;
+				default:
+					throw new RuntimeError(
+						`Unknown comparison operator: ${node.operator}`,
+						node.line,
+						node.column
+					);
+			}
+
+			return {
+				value: result,
+				isMarkdown: false,
+			};
+		}
+
+		if (node.operator === "&&" || node.operator === "||") {
+			const left = this.evaluateExpression(node.left);
+			const leftBool = this.toBoolean(left.value);
+
+			if (node.operator === "&&" && !leftBool) {
+				return { value: false, isMarkdown: false };
+			}
+			if (node.operator === "||" && leftBool) {
+				return { value: true, isMarkdown: false };
+			}
+
+			const right = this.evaluateExpression(node.right);
+			const rightBool = this.toBoolean(right.value);
+
+			return {
+				value: node.operator === "&&" ? rightBool : rightBool,
+				isMarkdown: false,
+			};
+		}
+
 		const left = this.evaluateExpression(node.left);
 		const right = this.evaluateExpression(node.right);
 
@@ -327,6 +399,36 @@ export class Evaluator {
 	}
 
 	private evaluateUnaryOp(node: UnaryOpNode): EvaluatedValue {
+		if (node.operator === "!") {
+			const operand = this.evaluateExpression(node.operand);
+			const boolValue = this.toBoolean(operand.value);
+			return {
+				value: !boolValue,
+				isMarkdown: false,
+			};
+		}
+
+		if (node.operator === "-") {
+			const operand = this.evaluateExpression(node.operand);
+			const numValue = this.toNumber(
+				operand.value,
+				node.line,
+				node.column
+			);
+			return {
+				value: -numValue,
+				isMarkdown: true,
+			};
+		}
+
+		if (!("name" in node.operand)) {
+			throw new RuntimeError(
+				`${node.operator} requires a variable`,
+				node.line,
+				node.column
+			);
+		}
+
 		const current = this.context.getVariable(node.operand.name);
 		if (current === undefined) {
 			throw new RuntimeError(
@@ -353,12 +455,15 @@ export class Evaluator {
 	}
 
 	private toNumber(
-		value: string | number,
+		value: string | number | boolean,
 		line: number,
 		column: number
 	): number {
 		if (typeof value === "number") {
 			return value;
+		}
+		if (typeof value === "boolean") {
+			return value ? 1 : 0;
 		}
 		const num = parseFloat(value);
 		if (isNaN(num)) {
@@ -371,6 +476,17 @@ export class Evaluator {
 		return num;
 	}
 
+	private toBoolean(value: string | number | boolean): boolean {
+		if (typeof value === "boolean") {
+			return value;
+		}
+		if (typeof value === "number") {
+			return value !== 0;
+		}
+
+		return value !== "";
+	}
+
 	private evaluateFunctionDefinition(node: FunctionNode): null {
 		this.context.setFunction(node.name, {
 			params: node.params,
@@ -378,6 +494,45 @@ export class Evaluator {
 			body: node.body,
 		});
 		return null;
+	}
+
+	private evaluateIfStatement(node: IfNode): EvaluatedValue | null {
+		const conditionResult = this.evaluateExpression(node.condition);
+		const conditionValue = this.toBoolean(conditionResult.value);
+
+		if (conditionValue) {
+			return this.evaluateStatementBlock(node.then);
+		}
+
+		for (const elseIf of node.elseIfs) {
+			const elseIfCondition = this.evaluateExpression(elseIf.condition);
+			const elseIfValue = this.toBoolean(elseIfCondition.value);
+
+			if (elseIfValue) {
+				return this.evaluateStatementBlock(elseIf.then);
+			}
+		}
+
+		if (node.else) {
+			return this.evaluateStatementBlock(node.else);
+		}
+
+		return null;
+	}
+
+	private evaluateStatementBlock(
+		statements: StatementNode[]
+	): EvaluatedValue | null {
+		let lastValue: EvaluatedValue | null = null;
+
+		for (const stmt of statements) {
+			const result = this.evaluateStatement(stmt);
+			if (result !== null) {
+				lastValue = result;
+			}
+		}
+
+		return lastValue;
 	}
 
 	private evaluateFunctionCall(node: FunctionCallNode): EvaluatedValue {

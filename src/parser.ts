@@ -5,12 +5,14 @@ import {
 	ExpressionNode,
 	VariableNode,
 	FunctionNode,
+	IfNode,
 	FunctionCallNode,
 	AnonymousFunctionNode,
 	BlockNode,
 	StringNode,
 	TemplateStringNode,
 	NumberNode,
+	BooleanNode,
 	IdentifierNode,
 	ConcatenationNode,
 	BinaryOpNode,
@@ -59,6 +61,10 @@ export class Parser {
 			return null;
 		}
 
+		if (this.check(TokenType.IF)) {
+			return this.parseIfStatement();
+		}
+
 		if (
 			this.check(TokenType.IDENTIFIER) &&
 			this.peekNext()?.type === TokenType.EQUALS
@@ -102,20 +108,7 @@ export class Parser {
 			: [];
 
 		this.consume(TokenType.LBRACE, "Expected '{' to start function body");
-
-		const body: StatementNode[] = [];
-		while (!this.check(TokenType.RBRACE) && !this.isAtEnd()) {
-			if (this.check(TokenType.NEWLINE)) {
-				this.advance();
-				continue;
-			}
-
-			const stmt = this.parseStatement();
-			if (stmt) {
-				body.push(stmt);
-			}
-		}
-
+		const body = this.parseStatementBlock();
 		this.consume(TokenType.RBRACE, "Expected '}' to end function body");
 
 		return {
@@ -127,6 +120,98 @@ export class Parser {
 			line,
 			column,
 		};
+	}
+
+	private parseIfStatement(): IfNode {
+		const ifToken = this.advance();
+		this.skipNewlines();
+
+		this.consume(TokenType.LPAREN, "Expected '(' after 'if'");
+		this.skipNewlines();
+		const condition = this.parseExpression();
+		this.skipNewlines();
+		this.consume(TokenType.RPAREN, "Expected ')' after if condition");
+		this.skipNewlines();
+
+		this.consume(TokenType.LBRACE, "Expected '{' after if condition");
+		const then = this.parseStatementBlock();
+		this.consume(TokenType.RBRACE, "Expected '}' to end if block");
+		this.skipNewlines();
+
+		const elseIfs: Array<{
+			condition: ExpressionNode;
+			then: StatementNode[];
+		}> = [];
+		let elseBlock: StatementNode[] | undefined;
+
+		while (this.check(TokenType.ELSE)) {
+			this.advance();
+			this.skipNewlines();
+
+			if (this.check(TokenType.IF)) {
+				this.advance();
+				this.skipNewlines();
+
+				this.consume(TokenType.LPAREN, "Expected '(' after 'else if'");
+				this.skipNewlines();
+				const elseIfCondition = this.parseExpression();
+				this.skipNewlines();
+				this.consume(
+					TokenType.RPAREN,
+					"Expected ')' after else if condition"
+				);
+				this.skipNewlines();
+
+				this.consume(
+					TokenType.LBRACE,
+					"Expected '{' after else if condition"
+				);
+				const elseIfThen = this.parseStatementBlock();
+				this.consume(
+					TokenType.RBRACE,
+					"Expected '}' to end else if block"
+				);
+				this.skipNewlines();
+
+				elseIfs.push({ condition: elseIfCondition, then: elseIfThen });
+			} else {
+				this.consume(TokenType.LBRACE, "Expected '{' after 'else'");
+				elseBlock = this.parseStatementBlock();
+				this.consume(
+					TokenType.RBRACE,
+					"Expected '}' to end else block"
+				);
+				break;
+			}
+		}
+
+		return {
+			type: "If",
+			condition,
+			then,
+			elseIfs,
+			else: elseBlock,
+			line: ifToken.line,
+			column: ifToken.column,
+		};
+	}
+
+	private parseStatementBlock(): StatementNode[] {
+		const statements: StatementNode[] = [];
+
+		while (!this.check(TokenType.RBRACE) && !this.isAtEnd()) {
+			if (this.check(TokenType.NEWLINE)) {
+				this.advance();
+				continue;
+			}
+
+			const stmt = this.parseStatement();
+			if (stmt) {
+				statements.push(stmt);
+			}
+		}
+
+		return statements;
 	}
 
 	private parseParameterList(): string[] {
@@ -192,7 +277,83 @@ export class Parser {
 	}
 
 	private parseExpression(): ExpressionNode {
-		return this.parseAdditive();
+		return this.parseLogicalOr();
+	}
+
+	private parseLogicalOr(): ExpressionNode {
+		let left = this.parseLogicalAnd();
+
+		while (this.check(TokenType.OR)) {
+			const operator = this.advance();
+			this.skipNewlines();
+			const right = this.parseLogicalAnd();
+
+			left = {
+				type: "BinaryOp",
+				operator: "||",
+				left,
+				right,
+				line: operator.line,
+				column: operator.column,
+			};
+		}
+
+		return left;
+	}
+
+	private parseLogicalAnd(): ExpressionNode {
+		let left = this.parseComparison();
+
+		while (this.check(TokenType.AND)) {
+			const operator = this.advance();
+			this.skipNewlines();
+			const right = this.parseComparison();
+
+			left = {
+				type: "BinaryOp",
+				operator: "&&",
+				left,
+				right,
+				line: operator.line,
+				column: operator.column,
+			};
+		}
+
+		return left;
+	}
+
+	private parseComparison(): ExpressionNode {
+		let left = this.parseAdditive();
+
+		while (
+			this.check(TokenType.EQUALS_EQUALS) ||
+			this.check(TokenType.NOT_EQUALS) ||
+			this.check(TokenType.LESS_THAN) ||
+			this.check(TokenType.LESS_THAN_EQUALS) ||
+			this.check(TokenType.GREATER_THAN) ||
+			this.check(TokenType.GREATER_THAN_EQUALS)
+		) {
+			const operator = this.advance();
+			this.skipNewlines();
+			const right = this.parseAdditive();
+
+			left = {
+				type: "BinaryOp",
+				operator: operator.value as
+					| "=="
+					| "!="
+					| "<"
+					| "<="
+					| ">"
+					| ">=",
+				left,
+				right,
+				line: operator.line,
+				column: operator.column,
+			};
+		}
+
+		return left;
 	}
 
 	private parseAdditive(): ExpressionNode {
@@ -273,6 +434,36 @@ export class Parser {
 			};
 		}
 
+		if (this.check(TokenType.NOT)) {
+			const operator = this.advance();
+			this.skipNewlines();
+			const operand = this.parseUnary();
+
+			return {
+				type: "UnaryOp",
+				operator: "!",
+				operand,
+				prefix: true,
+				line: operator.line,
+				column: operator.column,
+			};
+		}
+
+		if (this.check(TokenType.MINUS)) {
+			const operator = this.advance();
+			this.skipNewlines();
+			const operand = this.parseUnary();
+
+			return {
+				type: "UnaryOp",
+				operator: "-",
+				operand,
+				prefix: true,
+				line: operator.line,
+				column: operator.column,
+			};
+		}
+
 		const expr = this.parsePrimary();
 
 		if (
@@ -295,6 +486,25 @@ export class Parser {
 	}
 
 	private parsePrimary(): ExpressionNode {
+		if (this.check(TokenType.LPAREN)) {
+			this.advance();
+			this.skipNewlines();
+			const expr = this.parseExpression();
+			this.skipNewlines();
+			this.consume(TokenType.RPAREN, "Expected ')' after expression");
+			return expr;
+		}
+
+		if (this.check(TokenType.BOOLEAN)) {
+			const token = this.advance();
+			return {
+				type: "Boolean",
+				value: token.value === "true",
+				line: token.line,
+				column: token.column,
+			};
+		}
+
 		if (this.check(TokenType.NUMBER)) {
 			const token = this.advance();
 			return {

@@ -113,15 +113,119 @@ export class Lexer {
 			};
 		}
 
-		switch (char) {
-			case "=":
+		if (char === "=") {
+			this.advance();
+			if (this.peek() === "=") {
 				this.advance();
 				return {
-					type: TokenType.EQUALS,
-					value: "=",
+					type: TokenType.EQUALS_EQUALS,
+					value: "==",
 					line: startLine,
 					column: startColumn,
 				};
+			}
+			return {
+				type: TokenType.EQUALS,
+				value: "=",
+				line: startLine,
+				column: startColumn,
+			};
+		}
+
+		if (char === "!") {
+			this.advance();
+			if (this.peek() === "=") {
+				this.advance();
+				return {
+					type: TokenType.NOT_EQUALS,
+					value: "!=",
+					line: startLine,
+					column: startColumn,
+				};
+			}
+			return {
+				type: TokenType.NOT,
+				value: "!",
+				line: startLine,
+				column: startColumn,
+			};
+		}
+
+		if (char === "<") {
+			this.advance();
+			if (this.peek() === "=") {
+				this.advance();
+				return {
+					type: TokenType.LESS_THAN_EQUALS,
+					value: "<=",
+					line: startLine,
+					column: startColumn,
+				};
+			}
+			return {
+				type: TokenType.LESS_THAN,
+				value: "<",
+				line: startLine,
+				column: startColumn,
+			};
+		}
+
+		if (char === ">") {
+			this.advance();
+			if (this.peek() === "=") {
+				this.advance();
+				return {
+					type: TokenType.GREATER_THAN_EQUALS,
+					value: ">=",
+					line: startLine,
+					column: startColumn,
+				};
+			}
+			return {
+				type: TokenType.GREATER_THAN,
+				value: ">",
+				line: startLine,
+				column: startColumn,
+			};
+		}
+
+		if (char === "&") {
+			this.advance();
+			if (this.peek() === "&") {
+				this.advance();
+				return {
+					type: TokenType.AND,
+					value: "&&",
+					line: startLine,
+					column: startColumn,
+				};
+			}
+			throw new LexerError(
+				`Unexpected character '&', did you mean '&&'?`,
+				startLine,
+				startColumn
+			);
+		}
+
+		if (char === "|") {
+			this.advance();
+			if (this.peek() === "|") {
+				this.advance();
+				return {
+					type: TokenType.OR,
+					value: "||",
+					line: startLine,
+					column: startColumn,
+				};
+			}
+			throw new LexerError(
+				`Unexpected character '|', did you mean '||'?`,
+				startLine,
+				startColumn
+			);
+		}
+
+		switch (char) {
 			case "*":
 				this.advance();
 				return {
@@ -493,6 +597,33 @@ export class Lexer {
 		) {
 			value += this.peek();
 			this.advance();
+		}
+
+		if (value === "true" || value === "false") {
+			return {
+				type: TokenType.BOOLEAN,
+				value,
+				line: startLine,
+				column: startColumn,
+			};
+		}
+
+		if (value === "if") {
+			return {
+				type: TokenType.IF,
+				value,
+				line: startLine,
+				column: startColumn,
+			};
+		}
+
+		if (value === "else") {
+			return {
+				type: TokenType.ELSE,
+				value,
+				line: startLine,
+				column: startColumn,
+			};
 		}
 
 		return {
