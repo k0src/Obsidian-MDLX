@@ -5,8 +5,7 @@ import { Evaluator, ExecutionContext } from "./src/evaluator";
 import { Renderer } from "./src/renderer";
 import { DynamicStyleManager } from "./src/styleManager";
 
-export default class LayoutToolsPlugin extends Plugin {
-	private contexts: Map<string, ExecutionContext> = new Map();
+export default class MDLXPlugin extends Plugin {
 	private globalContext: ExecutionContext = new ExecutionContext();
 	private processingQueues: Map<string, Promise<void>> = new Map();
 	private renderer: Renderer;
@@ -23,7 +22,7 @@ export default class LayoutToolsPlugin extends Plugin {
 		this.registerEvent(
 			this.app.vault.on("delete", (file) => {
 				if (file instanceof TFile) {
-					this.clearContextForFile(file.path);
+					this.processingQueues.delete(file.path);
 				}
 			})
 		);
@@ -31,10 +30,10 @@ export default class LayoutToolsPlugin extends Plugin {
 		this.registerEvent(
 			this.app.vault.on("rename", (file, oldPath) => {
 				if (file instanceof TFile) {
-					const oldContext = this.contexts.get(oldPath);
-					if (oldContext) {
-						this.contexts.set(file.path, oldContext);
-						this.contexts.delete(oldPath);
+					const oldQueue = this.processingQueues.get(oldPath);
+					if (oldQueue) {
+						this.processingQueues.set(file.path, oldQueue);
+						this.processingQueues.delete(oldPath);
 					}
 				}
 			})
@@ -56,7 +55,8 @@ export default class LayoutToolsPlugin extends Plugin {
 			el.addClass("lx-container");
 
 			try {
-				const context = this.getContextForFile(ctx.sourcePath);
+				const blockContext = new ExecutionContext();
+				blockContext.setGlobalContext(this.globalContext);
 
 				const lexer = new Lexer(source);
 				const tokens = lexer.tokenize();
@@ -64,7 +64,7 @@ export default class LayoutToolsPlugin extends Plugin {
 				const parser = new Parser(tokens);
 				const ast = parser.parse();
 
-				const evaluator = new Evaluator(context);
+				const evaluator = new Evaluator(blockContext);
 				const results = evaluator.evaluate(ast);
 
 				await this.renderer.render(results, el, ctx.sourcePath);
@@ -79,22 +79,7 @@ export default class LayoutToolsPlugin extends Plugin {
 		await currentProcessing;
 	}
 
-	private getContextForFile(sourcePath: string): ExecutionContext {
-		if (!this.contexts.has(sourcePath)) {
-			const fileContext = new ExecutionContext();
-			fileContext.setGlobalContext(this.globalContext);
-			this.contexts.set(sourcePath, fileContext);
-		}
-		return this.contexts.get(sourcePath)!;
-	}
-
-	private clearContextForFile(sourcePath: string): void {
-		this.contexts.delete(sourcePath);
-		this.processingQueues.delete(sourcePath);
-	}
-
 	onunload() {
-		this.contexts.clear();
 		this.processingQueues.clear();
 		this.styleManager?.cleanup();
 	}
