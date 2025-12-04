@@ -375,3 +375,29 @@ export const UTILITY_CLASSES: { [key: string]: string } = {
 	"lne-hght": "line-height: var(--line-height-normal);",
 	"lne-hght-sm": "line-height: var(--line-height-tight);",
 };
+
+export class StyleParser {
+	static parseClasses(classes: string[]): string {
+		const cssRules: string[] = [];
+
+		for (const className of classes) {
+			if (UTILITY_CLASSES[className]) {
+				cssRules.push(UTILITY_CLASSES[className]);
+			}
+		}
+
+		return cssRules.join(" ");
+	}
+
+	static generateClassName(): string {
+		return `lx-${Math.random().toString(36).slice(2, 11)}`;
+	}
+
+	static createStyleRule(
+		className: string,
+		utilityClasses: string[]
+	): string {
+		const css = this.parseClasses(utilityClasses);
+		return `.${className} { ${css} }`;
+	}
+}
