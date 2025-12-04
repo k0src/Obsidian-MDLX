@@ -8,6 +8,7 @@ import {
 	IfNode,
 	ForNode,
 	WhileNode,
+	ReturnNode,
 	FunctionCallNode,
 	AnonymousFunctionNode,
 	BlockNode,
@@ -19,6 +20,9 @@ import {
 	ConcatenationNode,
 	BinaryOpNode,
 	UnaryOpNode,
+	ArrayNode,
+	ArrayIndexNode,
+	ArrayIndexAssignmentNode,
 	ParseError,
 } from "./types/ast.types";
 import { Lexer } from "./lexer";
@@ -75,6 +79,10 @@ export class Parser {
 			return this.parseWhileStatement();
 		}
 
+		if (this.check(TokenType.ARROW)) {
+			return this.parseReturnStatement();
+		}
+
 		if (
 			this.check(TokenType.GLOBAL) &&
 			this.peekNext()?.type === TokenType.EQUALS
@@ -105,33 +113,62 @@ export class Parser {
 			}
 		}
 
-		if (
-			this.check(TokenType.IDENTIFIER) &&
-			this.peekNext()?.type === TokenType.EQUALS
-		) {
+		if (this.check(TokenType.IDENTIFIER)) {
 			const nameToken = this.peek();
 			const name = nameToken.value;
 
-			this.advance();
-			this.advance();
+			const nextToken = this.peekNext();
 
-			if (this.check(TokenType.LPAREN)) {
-				return this.parseFunctionDefinition(
+			if (nextToken?.type === TokenType.LBRACKET) {
+				this.advance();
+
+				const arrayExpr = this.parseArrayIndex({
+					type: "Identifier",
 					name,
-					nameToken.line,
-					nameToken.column,
-					false
-				);
-			} else {
-				const value = this.parseExpression();
-				return {
-					type: "Variable",
-					name,
-					value,
-					isGlobal: false,
 					line: nameToken.line,
 					column: nameToken.column,
-				};
+				});
+
+				if (this.check(TokenType.EQUALS)) {
+					this.advance();
+					const value = this.parseExpression();
+
+					const arrayIndexNode = arrayExpr as ArrayIndexNode;
+					return {
+						type: "ArrayIndexAssignment",
+						array: arrayIndexNode.array,
+						index: arrayIndexNode.index,
+						value,
+						line: nameToken.line,
+						column: nameToken.column,
+					};
+				} else {
+					return arrayExpr;
+				}
+			}
+
+			if (nextToken?.type === TokenType.EQUALS) {
+				this.advance();
+				this.advance();
+
+				if (this.check(TokenType.LPAREN)) {
+					return this.parseFunctionDefinition(
+						name,
+						nameToken.line,
+						nameToken.column,
+						false
+					);
+				} else {
+					const value = this.parseExpression();
+					return {
+						type: "Variable",
+						name,
+						value,
+						isGlobal: false,
+						line: nameToken.line,
+						column: nameToken.column,
+					};
+				}
 			}
 		}
 
@@ -311,6 +348,32 @@ export class Parser {
 			body,
 			line: whileToken.line,
 			column: whileToken.column,
+		};
+	}
+
+	private parseReturnStatement(): ReturnNode {
+		const arrowToken = this.advance();
+		this.skipNewlines();
+
+		if (
+			this.check(TokenType.NEWLINE) ||
+			this.check(TokenType.RBRACE) ||
+			this.isAtEnd()
+		) {
+			return {
+				type: "Return",
+				line: arrowToken.line,
+				column: arrowToken.column,
+			};
+		}
+
+		const value = this.parseExpression();
+
+		return {
+			type: "Return",
+			value,
+			line: arrowToken.line,
+			column: arrowToken.column,
 		};
 	}
 
@@ -674,6 +737,15 @@ export class Parser {
 				);
 			}
 
+			if (this.check(TokenType.LBRACKET)) {
+				return this.parseArrayIndex({
+					type: "Identifier",
+					name: token.value,
+					line: token.line,
+					column: token.column,
+				});
+			}
+
 			return {
 				type: "Identifier",
 				name: token.value,
@@ -691,6 +763,15 @@ export class Parser {
 					token.line,
 					token.column
 				);
+			}
+
+			if (this.check(TokenType.LBRACKET)) {
+				return this.parseArrayIndex({
+					type: "Identifier",
+					name: token.value,
+					line: token.line,
+					column: token.column,
+				});
 			}
 
 			return {
@@ -713,6 +794,10 @@ export class Parser {
 				token.line,
 				token.column
 			);
+		}
+
+		if (this.check(TokenType.LBRACKET)) {
+			return this.parseArrayLiteral();
 		}
 
 		if (this.check(TokenType.LBRACE)) {
@@ -863,6 +948,78 @@ export class Parser {
 			line,
 			column,
 		};
+	}
+
+	private parseArrayLiteral(): ArrayNode {
+		const token = this.advance();
+		const line = token.line;
+		const column = token.column;
+
+		this.skipNewlines();
+
+		const elements: ExpressionNode[] = [];
+
+		if (this.check(TokenType.RBRACKET)) {
+			this.advance();
+			return {
+				type: "Array",
+				elements,
+				line,
+				column,
+			};
+		}
+
+		while (!this.check(TokenType.RBRACKET) && !this.isAtEnd()) {
+			this.skipNewlines();
+			elements.push(this.parseExpression());
+			this.skipNewlines();
+
+			if (this.check(TokenType.COMMA)) {
+				this.advance();
+				this.skipNewlines();
+			} else if (!this.check(TokenType.RBRACKET)) {
+				throw new ParseError(
+					"Expected ',' or ']' in array literal",
+					this.peek().line,
+					this.peek().column
+				);
+			}
+		}
+
+		this.consume(TokenType.RBRACKET, "Expected ']' after array elements");
+
+		return {
+			type: "Array",
+			elements,
+			line,
+			column,
+		};
+	}
+
+	private parseArrayIndex(array: ExpressionNode): ArrayIndexNode {
+		const token = this.advance();
+		const line = token.line;
+		const column = token.column;
+
+		this.skipNewlines();
+		const index = this.parseExpression();
+		this.skipNewlines();
+
+		this.consume(TokenType.RBRACKET, "Expected ']' after array index");
+
+		const indexNode: ArrayIndexNode = {
+			type: "ArrayIndex",
+			array,
+			index,
+			line,
+			column,
+		};
+
+		if (this.check(TokenType.LBRACKET)) {
+			return this.parseArrayIndex(indexNode);
+		}
+
+		return indexNode;
 	}
 
 	private check(type: TokenType): boolean {

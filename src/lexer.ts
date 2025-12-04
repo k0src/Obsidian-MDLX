@@ -136,6 +136,15 @@ export class Lexer {
 					column: startColumn,
 				};
 			}
+			if (this.peek() === ">") {
+				this.advance();
+				return {
+					type: TokenType.ARROW,
+					value: "=>",
+					line: startLine,
+					column: startColumn,
+				};
+			}
 			return {
 				type: TokenType.EQUALS,
 				value: "=",

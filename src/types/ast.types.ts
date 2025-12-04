@@ -28,6 +28,24 @@ export interface BooleanNode extends ASTNode {
 	value: boolean;
 }
 
+export interface ArrayNode extends ASTNode {
+	type: "Array";
+	elements: ExpressionNode[];
+}
+
+export interface ArrayIndexNode extends ASTNode {
+	type: "ArrayIndex";
+	array: ExpressionNode;
+	index: ExpressionNode;
+}
+
+export interface ArrayIndexAssignmentNode extends ASTNode {
+	type: "ArrayIndexAssignment";
+	array: ExpressionNode;
+	index: ExpressionNode;
+	value: ExpressionNode;
+}
+
 export interface IdentifierNode extends ASTNode {
 	type: "Identifier";
 	name: string;
@@ -121,11 +139,18 @@ export interface WhileNode extends ASTNode {
 	body: StatementNode[];
 }
 
+export interface ReturnNode extends ASTNode {
+	type: "Return";
+	value?: ExpressionNode;
+}
+
 export type ExpressionNode =
 	| StringNode
 	| TemplateStringNode
 	| NumberNode
 	| BooleanNode
+	| ArrayNode
+	| ArrayIndexNode
 	| IdentifierNode
 	| ConcatenationNode
 	| BinaryOpNode
@@ -140,6 +165,8 @@ export type StatementNode =
 	| IfNode
 	| ForNode
 	| WhileNode
+	| ReturnNode
+	| ArrayIndexAssignmentNode
 	| ExpressionNode;
 
 export interface ProgramNode extends ASTNode {

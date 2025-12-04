@@ -7,6 +7,7 @@ import {
 	IfNode,
 	ForNode,
 	WhileNode,
+	ReturnNode,
 	FunctionCallNode,
 	AnonymousFunctionNode,
 	BlockNode,
@@ -14,6 +15,9 @@ import {
 	TemplateStringNode,
 	NumberNode,
 	BooleanNode,
+	ArrayNode,
+	ArrayIndexNode,
+	ArrayIndexAssignmentNode,
 	IdentifierNode,
 	ConcatenationNode,
 	BinaryOpNode,
@@ -27,8 +31,12 @@ export class RuntimeError extends Error {
 	}
 }
 
+export class ReturnValue {
+	constructor(public value?: EvaluatedValue) {}
+}
+
 export interface EvaluatedValue {
-	value: string | number | boolean;
+	value: string | number | boolean | EvaluatedValue[];
 	isMarkdown: boolean;
 	styles?: string[];
 	children?: EvaluatedValue[];
@@ -53,6 +61,10 @@ export class ExecutionContext {
 
 	setGlobalContext(global: ExecutionContext): void {
 		this.globalContext = global;
+	}
+
+	getGlobalContext(): ExecutionContext | undefined {
+		return this.globalContext;
 	}
 
 	setVariable(
@@ -175,6 +187,12 @@ export class Evaluator {
 				return this.evaluateFunctionDefinition(
 					statement as FunctionNode
 				);
+			case "ArrayIndexAssignment":
+				return this.evaluateArrayIndexAssignment(
+					statement as ArrayIndexAssignmentNode
+				);
+			case "Return":
+				return this.evaluateReturn(statement as ReturnNode);
 			case "If":
 				return this.evaluateIfStatement(statement as IfNode);
 			case "For":
@@ -186,6 +204,8 @@ export class Evaluator {
 			case "Number":
 			case "Boolean":
 			case "Identifier":
+			case "Array":
+			case "ArrayIndex":
 			case "Concatenation":
 			case "BinaryOp":
 			case "UnaryOp":
@@ -218,6 +238,10 @@ export class Evaluator {
 				return this.evaluateNumber(expr as NumberNode);
 			case "Boolean":
 				return this.evaluateBoolean(expr as BooleanNode);
+			case "Array":
+				return this.evaluateArray(expr as ArrayNode);
+			case "ArrayIndex":
+				return this.evaluateArrayIndex(expr as ArrayIndexNode);
 			case "Identifier":
 				return this.evaluateIdentifier(expr as IdentifierNode);
 			case "Concatenation":
@@ -289,6 +313,106 @@ export class Evaluator {
 			value: node.value,
 			isMarkdown: false,
 		};
+	}
+
+	private evaluateArray(node: ArrayNode): EvaluatedValue {
+		const elements = node.elements.map((elem) =>
+			this.evaluateExpression(elem)
+		);
+		return {
+			value: elements,
+			isMarkdown: false,
+		};
+	}
+
+	private evaluateArrayIndex(node: ArrayIndexNode): EvaluatedValue {
+		const arrayValue = this.evaluateExpression(node.array);
+		const indexValue = this.evaluateExpression(node.index);
+
+		if (!Array.isArray(arrayValue.value)) {
+			throw new RuntimeError(
+				`Cannot index non-array value (got ${typeof arrayValue.value})`,
+				node.line,
+				node.column
+			);
+		}
+
+		if (typeof indexValue.value !== "number") {
+			throw new RuntimeError(
+				`Array index must be a number (got ${typeof indexValue.value})`,
+				node.line,
+				node.column
+			);
+		}
+
+		const index = Math.floor(indexValue.value);
+		const array = arrayValue.value as EvaluatedValue[];
+
+		if (index < 0 || index >= array.length) {
+			throw new RuntimeError(
+				`Array index out of bounds: ${index} (array length: ${array.length})`,
+				node.line,
+				node.column
+			);
+		}
+
+		return array[index];
+	}
+
+	private evaluateArrayIndexAssignment(node: ArrayIndexAssignmentNode): null {
+		const value = this.evaluateExpression(node.value);
+
+		if (node.array.type !== "Identifier") {
+			throw new RuntimeError(
+				`Can only assign to array variable, not expression`,
+				node.line,
+				node.column
+			);
+		}
+
+		const arrayName = (node.array as IdentifierNode).name;
+		const arrayValue = this.context.getVariable(arrayName);
+
+		if (arrayValue === undefined) {
+			throw new RuntimeError(
+				`Undefined variable: ${arrayName}`,
+				node.line,
+				node.column
+			);
+		}
+
+		if (!Array.isArray(arrayValue.value)) {
+			throw new RuntimeError(
+				`Cannot index non-array value (got ${typeof arrayValue.value})`,
+				node.line,
+				node.column
+			);
+		}
+
+		const indexValue = this.evaluateExpression(node.index);
+
+		if (typeof indexValue.value !== "number") {
+			throw new RuntimeError(
+				`Array index must be a number (got ${typeof indexValue.value})`,
+				node.line,
+				node.column
+			);
+		}
+
+		const index = Math.floor(indexValue.value);
+		const array = arrayValue.value as EvaluatedValue[];
+
+		if (index < 0 || index >= array.length) {
+			throw new RuntimeError(
+				`Array index out of bounds: ${index} (array length: ${array.length})`,
+				node.line,
+				node.column
+			);
+		}
+
+		array[index] = value;
+
+		return null;
 	}
 
 	private evaluateIdentifier(node: IdentifierNode): EvaluatedValue {
@@ -499,7 +623,7 @@ export class Evaluator {
 	}
 
 	private toNumber(
-		value: string | number | boolean,
+		value: string | number | boolean | EvaluatedValue[],
 		line: number,
 		column: number
 	): number {
@@ -508,6 +632,13 @@ export class Evaluator {
 		}
 		if (typeof value === "boolean") {
 			return value ? 1 : 0;
+		}
+		if (Array.isArray(value)) {
+			throw new RuntimeError(
+				`Cannot convert array to number`,
+				line,
+				column
+			);
 		}
 		const num = parseFloat(value);
 		if (isNaN(num)) {
@@ -520,12 +651,17 @@ export class Evaluator {
 		return num;
 	}
 
-	private toBoolean(value: string | number | boolean): boolean {
+	private toBoolean(
+		value: string | number | boolean | EvaluatedValue[]
+	): boolean {
 		if (typeof value === "boolean") {
 			return value;
 		}
 		if (typeof value === "number") {
 			return value !== 0;
+		}
+		if (Array.isArray(value)) {
+			return true;
 		}
 
 		return value !== "";
@@ -542,6 +678,15 @@ export class Evaluator {
 			node.isGlobal
 		);
 		return null;
+	}
+
+	private evaluateReturn(node: ReturnNode): never {
+		if (node.value) {
+			const value = this.evaluateExpression(node.value);
+			throw new ReturnValue(value);
+		} else {
+			throw new ReturnValue();
+		}
 	}
 
 	private evaluateIfStatement(node: IfNode): EvaluatedValue | null {
@@ -734,6 +879,11 @@ export class Evaluator {
 	): EvaluatedValue {
 		const funcContext = new ExecutionContext(this.context);
 
+		const globalCtx = this.context.getGlobalContext();
+		if (globalCtx) {
+			funcContext.setGlobalContext(globalCtx);
+		}
+
 		for (let i = 0; i < funcDef.params.length; i++) {
 			const paramName = funcDef.params[i];
 			const argValue = args[i];
@@ -759,11 +909,29 @@ export class Evaluator {
 		const funcEvaluator = new Evaluator(funcContext);
 
 		const results: EvaluatedValue[] = [];
-		for (const stmt of funcDef.body) {
-			const result = funcEvaluator["evaluateStatement"](stmt);
-			if (result) {
-				results.push(result);
+		try {
+			for (const stmt of funcDef.body) {
+				const result = funcEvaluator["evaluateStatement"](stmt);
+				if (result) {
+					results.push(result);
+				}
 			}
+		} catch (e) {
+			if (e instanceof ReturnValue) {
+				if (e.value) {
+					return {
+						...e.value,
+						styles:
+							funcDef.styles.length > 0
+								? funcDef.styles
+								: e.value.styles,
+					};
+				} else {
+					return { value: "", isMarkdown: true };
+				}
+			}
+
+			throw e;
 		}
 
 		if (results.length === 0) {

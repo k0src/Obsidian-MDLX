@@ -27,6 +27,11 @@ export class Renderer {
 		container: HTMLElement,
 		sourcePath: string
 	): Promise<void> {
+		if (Array.isArray(value.value)) {
+			this.renderArray(value.value, container);
+			return;
+		}
+
 		if (value.children && value.children.length > 0) {
 			await this.renderValueWithChildren(value, container, sourcePath);
 		} else if (value.styles && value.styles.length > 0) {
@@ -126,6 +131,27 @@ export class Renderer {
 
 		const code = pre.createEl("code");
 		code.textContent = text;
+	}
+
+	private renderArray(array: EvaluatedValue[], container: HTMLElement): void {
+		const arrayString = this.arrayToString(array);
+
+		const pre = container.createEl("pre", {
+			cls: "lx-literal-output",
+		});
+
+		const code = pre.createEl("code");
+		code.textContent = arrayString;
+	}
+
+	private arrayToString(array: EvaluatedValue[]): string {
+		const elements = array.map((elem) => {
+			if (Array.isArray(elem.value)) {
+				return this.arrayToString(elem.value as EvaluatedValue[]);
+			}
+			return JSON.stringify(elem.value);
+		});
+		return `[${elements.join(", ")}]`;
 	}
 
 	renderError(error: Error, container: HTMLElement): void {
