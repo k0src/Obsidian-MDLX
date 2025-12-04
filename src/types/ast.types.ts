@@ -10,6 +10,11 @@ export interface StringNode extends ASTNode {
 	isMarkdown: boolean;
 }
 
+export interface NumberNode extends ASTNode {
+	type: "Number";
+	value: number;
+}
+
 export interface IdentifierNode extends ASTNode {
 	type: "Identifier";
 	name: string;
@@ -18,6 +23,20 @@ export interface IdentifierNode extends ASTNode {
 export interface ConcatenationNode extends ASTNode {
 	type: "Concatenation";
 	parts: ExpressionNode[];
+}
+
+export interface BinaryOpNode extends ASTNode {
+	type: "BinaryOp";
+	operator: "+" | "-" | "*" | "/" | "%";
+	left: ExpressionNode;
+	right: ExpressionNode;
+}
+
+export interface UnaryOpNode extends ASTNode {
+	type: "UnaryOp";
+	operator: "++" | "--";
+	operand: IdentifierNode;
+	prefix: boolean;
 }
 
 export interface VariableNode extends ASTNode {
@@ -54,8 +73,11 @@ export interface BlockNode extends ASTNode {
 
 export type ExpressionNode =
 	| StringNode
+	| NumberNode
 	| IdentifierNode
 	| ConcatenationNode
+	| BinaryOpNode
+	| UnaryOpNode
 	| FunctionCallNode
 	| AnonymousFunctionNode
 	| BlockNode;
