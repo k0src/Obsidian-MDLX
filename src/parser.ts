@@ -9,8 +9,11 @@ import {
 	AnonymousFunctionNode,
 	BlockNode,
 	StringNode,
+	NumberNode,
 	IdentifierNode,
 	ConcatenationNode,
+	BinaryOpNode,
+	UnaryOpNode,
 	ParseError,
 } from "./types/ast.types";
 
@@ -26,7 +29,6 @@ export class Parser {
 		const statements: StatementNode[] = [];
 
 		while (!this.isAtEnd()) {
-			// Skip newlines
 			if (this.check(TokenType.NEWLINE)) {
 				this.advance();
 				continue;
@@ -47,7 +49,6 @@ export class Parser {
 	}
 
 	private parseStatement(): StatementNode | null {
-		// Skip newlines
 		while (this.check(TokenType.NEWLINE)) {
 			this.advance();
 		}
@@ -56,7 +57,6 @@ export class Parser {
 			return null;
 		}
 
-		// Check for variables/functions
 		if (
 			this.check(TokenType.IDENTIFIER) &&
 			this.peekNext()?.type === TokenType.EQUALS
@@ -64,11 +64,9 @@ export class Parser {
 			const nameToken = this.peek();
 			const name = nameToken.value;
 
-			// Look ahead to see if its a function definition or variable
-			this.advance(); // consume identifier
-			this.advance(); // consume =
+			this.advance();
+			this.advance();
 
-			// Check if next token is LPAREN (function)
 			if (this.check(TokenType.LPAREN)) {
 				return this.parseFunctionDefinition(
 					name,
@@ -76,7 +74,6 @@ export class Parser {
 					nameToken.column
 				);
 			} else {
-				// Variable
 				const value = this.parseExpression();
 				return {
 					type: "Variable",
@@ -88,7 +85,6 @@ export class Parser {
 			}
 		}
 
-		// Expression statement
 		return this.parseExpression();
 	}
 
@@ -97,20 +93,16 @@ export class Parser {
 		line: number,
 		column: number
 	): FunctionNode {
-		// Parse parameter list
 		const params = this.parseParameterList();
 
-		// Parse optional style list
 		const styles = this.check(TokenType.LBRACKET)
 			? this.parseStyleList()
 			: [];
 
-		// Parse function body
 		this.consume(TokenType.LBRACE, "Expected '{' to start function body");
 
 		const body: StatementNode[] = [];
 		while (!this.check(TokenType.RBRACE) && !this.isAtEnd()) {
-			// Skip newlines
 			if (this.check(TokenType.NEWLINE)) {
 				this.advance();
 				continue;
@@ -140,20 +132,16 @@ export class Parser {
 
 		const params: string[] = [];
 
-		// Empty list
 		if (this.check(TokenType.RPAREN)) {
 			this.advance();
 			return params;
 		}
 
-		// Parse parameters
 		do {
-			// Skip commas
 			if (this.check(TokenType.COMMA)) {
 				this.advance();
 			}
 
-			// Parameters must be identifiers
 			if (this.check(TokenType.IDENTIFIER)) {
 				params.push(this.advance().value);
 			} else if (!this.check(TokenType.RPAREN)) {
@@ -175,20 +163,16 @@ export class Parser {
 
 		const styles: string[] = [];
 
-		// Empty style list
 		if (this.check(TokenType.RBRACKET)) {
 			this.advance();
 			return styles;
 		}
 
-		// Parse style classes
 		do {
-			// Skip commas
 			if (this.check(TokenType.COMMA)) {
 				this.advance();
 			}
 
-			// Style classes are plain NAMEs
 			if (this.check(TokenType.NAME)) {
 				styles.push(this.advance().value);
 			} else if (!this.check(TokenType.RBRACKET)) {
@@ -206,21 +190,100 @@ export class Parser {
 	}
 
 	private parseExpression(): ExpressionNode {
-		let expr = this.parsePrimary();
+		return this.parseAdditive();
+	}
 
-		// Check for concatenation
-		if (this.check(TokenType.PLUS)) {
-			const parts: ExpressionNode[] = [expr];
+	private parseAdditive(): ExpressionNode {
+		let left = this.parseMultiplicative();
 
-			while (this.check(TokenType.PLUS)) {
-				this.advance(); // consume +
-				this.skipNewlines(); // skip newlines after +
-				parts.push(this.parsePrimary());
+		while (this.check(TokenType.PLUS) || this.check(TokenType.MINUS)) {
+			const operator = this.advance();
+			this.skipNewlines();
+			const right = this.parseMultiplicative();
+
+			left = {
+				type: "BinaryOp",
+				operator: operator.value as "+" | "-",
+				left,
+				right,
+				line: operator.line,
+				column: operator.column,
+			};
+		}
+
+		return left;
+	}
+
+	private parseMultiplicative(): ExpressionNode {
+		let left = this.parseUnary();
+
+		while (
+			this.check(TokenType.STAR) ||
+			this.check(TokenType.SLASH) ||
+			this.check(TokenType.PERCENT)
+		) {
+			const operator = this.advance();
+			this.skipNewlines();
+			const right = this.parseUnary();
+
+			left = {
+				type: "BinaryOp",
+				operator: operator.value as "*" | "/" | "%",
+				left,
+				right,
+				line: operator.line,
+				column: operator.column,
+			};
+		}
+
+		return left;
+	}
+
+	private parseUnary(): ExpressionNode {
+		if (
+			this.check(TokenType.PLUS_PLUS) ||
+			this.check(TokenType.MINUS_MINUS)
+		) {
+			const operator = this.advance();
+			this.skipNewlines();
+
+			if (!this.check(TokenType.IDENTIFIER)) {
+				throw new ParseError(
+					`Expected identifier after ${operator.value}`,
+					this.peek().line,
+					this.peek().column
+				);
 			}
 
+			const operand = this.advance();
 			return {
-				type: "Concatenation",
-				parts,
+				type: "UnaryOp",
+				operator: operator.value as "++" | "--",
+				operand: {
+					type: "Identifier",
+					name: operand.value,
+					line: operand.line,
+					column: operand.column,
+				},
+				prefix: true,
+				line: operator.line,
+				column: operator.column,
+			};
+		}
+
+		const expr = this.parsePrimary();
+
+		if (
+			expr.type === "Identifier" &&
+			(this.check(TokenType.PLUS_PLUS) ||
+				this.check(TokenType.MINUS_MINUS))
+		) {
+			const operator = this.advance();
+			return {
+				type: "UnaryOp",
+				operator: operator.value as "++" | "--",
+				operand: expr,
+				prefix: false,
 				line: expr.line,
 				column: expr.column,
 			};
@@ -230,7 +293,16 @@ export class Parser {
 	}
 
 	private parsePrimary(): ExpressionNode {
-		// String literal
+		if (this.check(TokenType.NUMBER)) {
+			const token = this.advance();
+			return {
+				type: "Number",
+				value: parseFloat(token.value),
+				line: token.line,
+				column: token.column,
+			};
+		}
+
 		if (this.check(TokenType.STRING)) {
 			const token = this.advance();
 			return {
@@ -242,7 +314,6 @@ export class Parser {
 			};
 		}
 
-		// Literal string
 		if (this.check(TokenType.LITERAL)) {
 			const token = this.advance();
 			return {
@@ -254,11 +325,9 @@ export class Parser {
 			};
 		}
 
-		// Identifier or function
 		if (this.check(TokenType.IDENTIFIER)) {
 			const token = this.advance();
 
-			// Function
 			if (this.check(TokenType.LPAREN)) {
 				return this.parseFunctionCall(
 					token.value,
@@ -267,7 +336,6 @@ export class Parser {
 				);
 			}
 
-			// Identifier
 			return {
 				type: "Identifier",
 				name: token.value,
@@ -276,11 +344,9 @@ export class Parser {
 			};
 		}
 
-		// Anonymous function
 		if (this.check(TokenType.AT)) {
 			const token = this.advance();
 
-			// Must be followed by LPAREN
 			if (this.check(TokenType.LPAREN)) {
 				return this.parseAnonymousFunction(token.line, token.column);
 			}
@@ -292,12 +358,10 @@ export class Parser {
 			);
 		}
 
-		// Block/div
 		if (this.check(TokenType.LBRACE)) {
 			return this.parseBlock();
 		}
 
-		// if we are here we have an unpected token
 		const token = this.peek();
 		throw new ParseError(
 			`Unexpected token: ${token.type} ('${token.value}')`,
@@ -311,7 +375,6 @@ export class Parser {
 		line: number,
 		column: number
 	): FunctionCallNode {
-		// Parse argument list
 		const args = this.parseArgumentList();
 
 		return {
@@ -325,28 +388,24 @@ export class Parser {
 
 	private parseArgumentList(): ExpressionNode[] {
 		this.consume(TokenType.LPAREN, "Expected '(' to start argument list");
-		this.skipNewlines(); // skip newlines
+		this.skipNewlines();
 
 		const args: ExpressionNode[] = [];
 
-		// Empty argument list
 		if (this.check(TokenType.RPAREN)) {
 			this.advance();
 			return args;
 		}
 
-		// Parse arguments
 		do {
-			// Skip commas
 			if (this.check(TokenType.COMMA)) {
 				this.advance();
-				this.skipNewlines(); // skip newlines after comma
+				this.skipNewlines();
 			}
 
-			// Parse expression argument
 			if (!this.check(TokenType.RPAREN)) {
 				args.push(this.parseExpression());
-				this.skipNewlines(); // skip newlines after argument
+				this.skipNewlines();
 			}
 		} while (this.check(TokenType.COMMA));
 
@@ -359,15 +418,12 @@ export class Parser {
 		line: number,
 		column: number
 	): AnonymousFunctionNode {
-		// Parse arguments
 		const args = this.parseArgumentList();
 
-		// Parse optional style list
 		const styles = this.check(TokenType.LBRACKET)
 			? this.parseStyleList()
 			: [];
 
-		// Final () invokes the function
 		this.consume(
 			TokenType.LPAREN,
 			"Expected '()' to invoke anonymous function"
@@ -387,16 +443,14 @@ export class Parser {
 	}
 
 	private parseBlock(): BlockNode {
-		const token = this.advance(); // consume {
+		const token = this.advance();
 		const line = token.line;
 		const column = token.column;
 
-		this.skipNewlines(); // skip newlines after {
+		this.skipNewlines();
 
-		// Parse all statements inside the block
 		const body: StatementNode[] = [];
 		while (!this.check(TokenType.RBRACE) && !this.isAtEnd()) {
-			// Skip newlines between statements
 			if (this.check(TokenType.NEWLINE)) {
 				this.advance();
 				continue;
@@ -410,7 +464,6 @@ export class Parser {
 
 		this.consume(TokenType.RBRACE, "Expected '}' after block content");
 
-		// Parse optional style list
 		const styles = this.check(TokenType.LBRACKET)
 			? this.parseStyleList()
 			: [];

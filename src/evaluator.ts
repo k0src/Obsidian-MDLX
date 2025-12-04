@@ -8,8 +8,11 @@ import {
 	AnonymousFunctionNode,
 	BlockNode,
 	StringNode,
+	NumberNode,
 	IdentifierNode,
 	ConcatenationNode,
+	BinaryOpNode,
+	UnaryOpNode,
 } from "./types/ast.types";
 
 export class RuntimeError extends Error {
@@ -20,7 +23,7 @@ export class RuntimeError extends Error {
 }
 
 export interface EvaluatedValue {
-	value: string;
+	value: string | number;
 	isMarkdown: boolean;
 	styles?: string[];
 	children?: EvaluatedValue[];
@@ -134,9 +137,11 @@ export class Evaluator {
 					statement as FunctionNode
 				);
 			case "String":
+			case "Number":
 			case "Identifier":
 			case "Concatenation":
-			case "FunctionCall":
+			case "BinaryOp":
+			case "UnaryOp":
 			case "AnonymousFunction":
 			case "Block":
 				return this.evaluateExpression(statement as ExpressionNode);
@@ -159,10 +164,16 @@ export class Evaluator {
 		switch (expr.type) {
 			case "String":
 				return this.evaluateString(expr as StringNode);
+			case "Number":
+				return this.evaluateNumber(expr as NumberNode);
 			case "Identifier":
 				return this.evaluateIdentifier(expr as IdentifierNode);
 			case "Concatenation":
 				return this.evaluateConcatenation(expr as ConcatenationNode);
+			case "BinaryOp":
+				return this.evaluateBinaryOp(expr as BinaryOpNode);
+			case "UnaryOp":
+				return this.evaluateUnaryOp(expr as UnaryOpNode);
 			case "FunctionCall":
 				return this.evaluateFunctionCall(expr as FunctionCallNode);
 			case "AnonymousFunction":
@@ -184,6 +195,13 @@ export class Evaluator {
 		return {
 			value: node.value,
 			isMarkdown: node.isMarkdown,
+		};
+	}
+
+	private evaluateNumber(node: NumberNode): EvaluatedValue {
+		return {
+			value: node.value,
+			isMarkdown: true,
 		};
 	}
 
@@ -210,6 +228,115 @@ export class Evaluator {
 			value: concatenated,
 			isMarkdown,
 		};
+	}
+
+	private evaluateBinaryOp(node: BinaryOpNode): EvaluatedValue {
+		const left = this.evaluateExpression(node.left);
+		const right = this.evaluateExpression(node.right);
+
+		if (node.operator === "+") {
+			if (
+				typeof left.value === "string" ||
+				typeof right.value === "string"
+			) {
+				return {
+					value: String(left.value) + String(right.value),
+					isMarkdown: left.isMarkdown || right.isMarkdown,
+				};
+			}
+			return {
+				value: (left.value as number) + (right.value as number),
+				isMarkdown: true,
+			};
+		}
+
+		const leftNum = this.toNumber(left.value, node.line, node.column);
+		const rightNum = this.toNumber(right.value, node.line, node.column);
+
+		let result: number;
+		switch (node.operator) {
+			case "-":
+				result = leftNum - rightNum;
+				break;
+			case "*":
+				result = leftNum * rightNum;
+				break;
+			case "/":
+				if (rightNum === 0) {
+					throw new RuntimeError(
+						"Division by zero",
+						node.line,
+						node.column
+					);
+				}
+				result = leftNum / rightNum;
+				break;
+			case "%":
+				if (rightNum === 0) {
+					throw new RuntimeError(
+						"Modulo by zero",
+						node.line,
+						node.column
+					);
+				}
+				result = leftNum % rightNum;
+				break;
+			default:
+				throw new RuntimeError(
+					`Unknown binary operator: ${node.operator}`,
+					node.line,
+					node.column
+				);
+		}
+
+		return {
+			value: result,
+			isMarkdown: true,
+		};
+	}
+
+	private evaluateUnaryOp(node: UnaryOpNode): EvaluatedValue {
+		const current = this.context.getVariable(node.operand.name);
+		if (current === undefined) {
+			throw new RuntimeError(
+				`Undefined variable: ${node.operand.name}`,
+				node.line,
+				node.column
+			);
+		}
+
+		const currentNum = this.toNumber(current.value, node.line, node.column);
+		const newValue =
+			node.operator === "++" ? currentNum + 1 : currentNum - 1;
+
+		this.context.setVariable(node.operand.name, {
+			value: newValue,
+			isMarkdown: true,
+		});
+
+		return {
+			value: node.prefix ? newValue : currentNum,
+			isMarkdown: true,
+		};
+	}
+
+	private toNumber(
+		value: string | number,
+		line: number,
+		column: number
+	): number {
+		if (typeof value === "number") {
+			return value;
+		}
+		const num = parseFloat(value);
+		if (isNaN(num)) {
+			throw new RuntimeError(
+				`Cannot convert "${value}" to number`,
+				line,
+				column
+			);
+		}
+		return num;
 	}
 
 	private evaluateFunctionDefinition(node: FunctionNode): null {

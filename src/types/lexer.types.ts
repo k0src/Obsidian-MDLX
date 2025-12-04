@@ -1,6 +1,7 @@
 export enum TokenType {
 	STRING = "STRING",
 	LITERAL = "LITERAL",
+	NUMBER = "NUMBER",
 
 	IDENTIFIER = "IDENTIFIER",
 	NAME = "NAME",
@@ -8,6 +9,12 @@ export enum TokenType {
 	AT = "AT",
 	EQUALS = "EQUALS",
 	PLUS = "PLUS",
+	MINUS = "MINUS",
+	STAR = "STAR",
+	SLASH = "SLASH",
+	PERCENT = "PERCENT",
+	PLUS_PLUS = "PLUS_PLUS",
+	MINUS_MINUS = "MINUS_MINUS",
 
 	LPAREN = "LPAREN",
 	RPAREN = "RPAREN",

@@ -13,7 +13,7 @@ export class Lexer {
 	tokenize(): Token[] {
 		const tokens: Token[] = [];
 
-		while (!this.atEnd()) {
+		while (!this.isAtEnd()) {
 			const token = this.nextToken();
 			if (token) {
 				tokens.push(token);
@@ -34,7 +34,7 @@ export class Lexer {
 		this.skipWhitespace();
 		this.skipComments();
 
-		if (this.atEnd()) {
+		if (this.isAtEnd()) {
 			return null;
 		}
 
@@ -62,8 +62,50 @@ export class Lexer {
 			return this.readLiteralString(startLine, startColumn);
 		}
 
+		if (this.isDigit(char)) {
+			return this.readNumber(startLine, startColumn);
+		}
+
 		if (char === "@") {
 			return this.readIdentifier(startLine, startColumn);
+		}
+
+		if (char === "+") {
+			this.advance();
+			if (this.peek() === "+") {
+				this.advance();
+				return {
+					type: TokenType.PLUS_PLUS,
+					value: "++",
+					line: startLine,
+					column: startColumn,
+				};
+			}
+			return {
+				type: TokenType.PLUS,
+				value: "+",
+				line: startLine,
+				column: startColumn,
+			};
+		}
+
+		if (char === "-") {
+			this.advance();
+			if (this.peek() === "-") {
+				this.advance();
+				return {
+					type: TokenType.MINUS_MINUS,
+					value: "--",
+					line: startLine,
+					column: startColumn,
+				};
+			}
+			return {
+				type: TokenType.MINUS,
+				value: "-",
+				line: startLine,
+				column: startColumn,
+			};
 		}
 
 		switch (char) {
@@ -75,11 +117,27 @@ export class Lexer {
 					line: startLine,
 					column: startColumn,
 				};
-			case "+":
+			case "*":
 				this.advance();
 				return {
-					type: TokenType.PLUS,
-					value: "+",
+					type: TokenType.STAR,
+					value: "*",
+					line: startLine,
+					column: startColumn,
+				};
+			case "/":
+				this.advance();
+				return {
+					type: TokenType.SLASH,
+					value: "/",
+					line: startLine,
+					column: startColumn,
+				};
+			case "%":
+				this.advance();
+				return {
+					type: TokenType.PERCENT,
+					value: "%",
 					line: startLine,
 					column: startColumn,
 				};
@@ -162,7 +220,7 @@ export class Lexer {
 		}
 
 		let value = "";
-		while (!this.atEnd() && this.peek() !== '"') {
+		while (!this.isAtEnd() && this.peek() !== '"') {
 			if (this.peek() === "\n") {
 				throw new LexerError(
 					"Unterminated string",
@@ -172,7 +230,8 @@ export class Lexer {
 			}
 			if (this.peek() === "\\") {
 				this.advance();
-				if (!this.atEnd()) {
+
+				if (!this.isAtEnd()) {
 					const escaped = this.peek();
 					value += this.getEscapedChar(escaped);
 					this.advance();
@@ -183,7 +242,7 @@ export class Lexer {
 			}
 		}
 
-		if (this.atEnd()) {
+		if (this.isAtEnd()) {
 			throw new LexerError("Unterminated string", startLine, startColumn);
 		}
 
@@ -200,7 +259,7 @@ export class Lexer {
 	private readMultilineString(startLine: number, startColumn: number): Token {
 		let value = "";
 
-		while (!this.atEnd()) {
+		while (!this.isAtEnd()) {
 			if (
 				this.peek() === '"' &&
 				this.peekNext() === '"' &&
@@ -232,10 +291,10 @@ export class Lexer {
 		this.advance();
 
 		let value = "";
-		while (!this.atEnd() && this.peek() !== "`") {
+		while (!this.isAtEnd() && this.peek() !== "`") {
 			if (this.peek() === "\\") {
 				this.advance();
-				if (!this.atEnd()) {
+				if (!this.isAtEnd()) {
 					const escaped = this.peek();
 					value += this.getEscapedChar(escaped);
 					this.advance();
@@ -246,7 +305,7 @@ export class Lexer {
 			}
 		}
 
-		if (this.atEnd()) {
+		if (this.isAtEnd()) {
 			throw new LexerError(
 				"Unterminated literal string",
 				startLine,
@@ -268,7 +327,7 @@ export class Lexer {
 		this.advance();
 
 		if (
-			this.atEnd() ||
+			this.isAtEnd() ||
 			(!this.isAlpha(this.peek()) && this.peek() !== "_")
 		) {
 			return {
@@ -281,10 +340,10 @@ export class Lexer {
 
 		let value = "@";
 		while (
-			!this.atEnd() &&
+			!this.isAtEnd() &&
 			(this.isAlphaNumeric(this.peek()) ||
 				this.peek() === "_" ||
-				this.peek() === "-")
+				(this.peek() === "-" && !this.isOperatorAhead()))
 		) {
 			value += this.peek();
 			this.advance();
@@ -301,7 +360,7 @@ export class Lexer {
 	private readName(startLine: number, startColumn: number): Token {
 		let value = "";
 		while (
-			!this.atEnd() &&
+			!this.isAtEnd() &&
 			(this.isAlphaNumeric(this.peek()) || this.peek() === "-")
 		) {
 			value += this.peek();
@@ -310,6 +369,32 @@ export class Lexer {
 
 		return {
 			type: TokenType.NAME,
+			value,
+			line: startLine,
+			column: startColumn,
+		};
+	}
+
+	private readNumber(startLine: number, startColumn: number): Token {
+		let value = "";
+
+		while (!this.isAtEnd() && this.isDigit(this.peek())) {
+			value += this.peek();
+			this.advance();
+		}
+
+		if (this.peek() === "." && this.isDigit(this.peekNext())) {
+			value += ".";
+			this.advance();
+
+			while (!this.isAtEnd() && this.isDigit(this.peek())) {
+				value += this.peek();
+				this.advance();
+			}
+		}
+
+		return {
+			type: TokenType.NUMBER,
 			value,
 			line: startLine,
 			column: startColumn,
@@ -336,7 +421,7 @@ export class Lexer {
 	}
 
 	private skipWhitespace(): void {
-		while (!this.atEnd()) {
+		while (!this.isAtEnd()) {
 			const char = this.peek();
 			if (char === " " || char === "\t" || char === "\r") {
 				this.advance();
@@ -348,14 +433,14 @@ export class Lexer {
 
 	private skipComments(): void {
 		while (
-			!this.atEnd() &&
+			!this.isAtEnd() &&
 			this.peek() === "/" &&
 			this.peekNext() === "/"
 		) {
 			this.advance();
 			this.advance();
 
-			while (!this.atEnd() && this.peek() !== "\n") {
+			while (!this.isAtEnd() && this.peek() !== "\n") {
 				this.advance();
 			}
 
@@ -367,12 +452,16 @@ export class Lexer {
 		return (char >= "a" && char <= "z") || (char >= "A" && char <= "Z");
 	}
 
+	private isDigit(char: string): boolean {
+		return char >= "0" && char <= "9";
+	}
+
 	private isAlphaNumeric(char: string): boolean {
-		return this.isAlpha(char) || (char >= "0" && char <= "9");
+		return this.isAlpha(char) || this.isDigit(char);
 	}
 
 	private peek(): string {
-		if (this.atEnd()) return "\0";
+		if (this.isAtEnd()) return "\0";
 		return this.source[this.pos];
 	}
 
@@ -400,7 +489,16 @@ export class Lexer {
 		return char;
 	}
 
-	private atEnd(): boolean {
+	private isAtEnd(): boolean {
 		return this.pos >= this.source.length;
+	}
+
+	private isOperatorAhead(): boolean {
+		const current = this.peek();
+		const next = this.peekNext();
+		return (
+			(current === "+" && next === "+") ||
+			(current === "-" && next === "-")
+		);
 	}
 }

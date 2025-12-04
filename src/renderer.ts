@@ -32,10 +32,12 @@ export class Renderer {
 		} else if (value.styles && value.styles.length > 0) {
 			await this.renderStyledValue(value, container, sourcePath);
 		} else {
+			const stringValue = String(value.value);
+
 			if (value.isMarkdown) {
-				await this.renderMarkdown(value.value, container, sourcePath);
+				await this.renderMarkdown(stringValue, container, sourcePath);
 			} else {
-				this.renderLiteral(value.value, container);
+				this.renderLiteral(stringValue, container);
 			}
 		}
 	}
@@ -72,17 +74,21 @@ export class Renderer {
 		sourcePath: string
 	): Promise<void> {
 		const className = StyleParser.generateClassName();
+
 		const cssRule = StyleParser.createStyleRule(className, value.styles!);
+
 		this.styleManager.addCustomStyle(className, cssRule);
 
 		const wrapper = container.createEl("div", {
 			cls: className,
 		});
 
+		const stringValue = String(value.value);
+
 		if (value.isMarkdown) {
-			await this.renderMarkdown(value.value, wrapper, sourcePath);
+			await this.renderMarkdown(stringValue, wrapper, sourcePath);
 		} else {
-			this.renderLiteral(value.value, wrapper);
+			this.renderLiteral(stringValue, wrapper);
 		}
 	}
 
