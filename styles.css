@@ -1,0 +1,50 @@
+.lx-container {
+	display: block;
+	width: 100%;
+	box-sizing: border-box;
+	margin: var(--size-4-2) 0;
+}
+
+.lx-markdown {
+	margin-top: 0;
+}
+
+.lx-markdown > :first-child {
+	margin-top: 0;
+}
+
+.lx-markdown > :last-child {
+	margin-bottom: 0;
+}
+
+.lx-literal {
+	background-color: var(--code-background);
+	border-radius: var(--radius-s);
+	margin: var(--size-4-2) 0;
+	overflow-x: auto;
+}
+
+.lx-literal code {
+	background: transparent;
+	padding: 0;
+	font-family: var(--font-monospace);
+	font-size: var(--code-size);
+	color: var(--code-normal);
+}
+
+.lx-error {
+	margin: var(--size-4-2) 0;
+	border-radius: var(--radius-s);
+}
+
+.lx-error pre {
+	border: 1px solid var(--text-error) !important;
+}
+
+.lx-error-message {
+	font-family: var(--font-monospace);
+	font-size: var(--code-size);
+	color: var(--text-error);
+	margin: 0;
+	overflow-x: auto;
+}
