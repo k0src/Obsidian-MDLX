@@ -141,6 +141,10 @@ export class Lexer {
 				};
 		}
 
+		if (this.isAlpha(char)) {
+			return this.readName(startLine, startColumn);
+		}
+
 		throw new LexerError(
 			`Unexpected character: '${char}'`,
 			startLine,
@@ -288,6 +292,24 @@ export class Lexer {
 
 		return {
 			type: TokenType.IDENTIFIER,
+			value,
+			line: startLine,
+			column: startColumn,
+		};
+	}
+
+	private readName(startLine: number, startColumn: number): Token {
+		let value = "";
+		while (
+			!this.atEnd() &&
+			(this.isAlphaNumeric(this.peek()) || this.peek() === "-")
+		) {
+			value += this.peek();
+			this.advance();
+		}
+
+		return {
+			type: TokenType.NAME,
 			value,
 			line: startLine,
 			column: startColumn,
