@@ -6,6 +6,8 @@ import {
 	VariableNode,
 	FunctionNode,
 	IfNode,
+	ForNode,
+	WhileNode,
 	FunctionCallNode,
 	AnonymousFunctionNode,
 	BlockNode,
@@ -63,6 +65,14 @@ export class Parser {
 
 		if (this.check(TokenType.IF)) {
 			return this.parseIfStatement();
+		}
+
+		if (this.check(TokenType.FOR)) {
+			return this.parseForStatement();
+		}
+
+		if (this.check(TokenType.WHILE)) {
+			return this.parseWhileStatement();
 		}
 
 		if (
@@ -193,6 +203,80 @@ export class Parser {
 			else: elseBlock,
 			line: ifToken.line,
 			column: ifToken.column,
+		};
+	}
+
+	private parseForStatement(): ForNode {
+		const forToken = this.advance();
+		this.skipNewlines();
+
+		this.consume(TokenType.LPAREN, "Expected '(' after 'for'");
+		this.skipNewlines();
+
+		const init = this.parseStatement();
+		if (!init) {
+			throw new ParseError(
+				"Expected initialization in for loop",
+				forToken.line,
+				forToken.column
+			);
+		}
+		this.skipNewlines();
+
+		this.consume(
+			TokenType.COMMA,
+			"Expected ',' after for loop initialization"
+		);
+		this.skipNewlines();
+
+		const condition = this.parseExpression();
+		this.skipNewlines();
+
+		this.consume(TokenType.COMMA, "Expected ',' after for loop condition");
+		this.skipNewlines();
+
+		const update = this.parseExpression();
+		this.skipNewlines();
+
+		this.consume(TokenType.RPAREN, "Expected ')' after for loop header");
+		this.skipNewlines();
+
+		this.consume(TokenType.LBRACE, "Expected '{' after for loop header");
+		const body = this.parseStatementBlock();
+		this.consume(TokenType.RBRACE, "Expected '}' to end for loop body");
+
+		return {
+			type: "For",
+			init,
+			condition,
+			update,
+			body,
+			line: forToken.line,
+			column: forToken.column,
+		};
+	}
+
+	private parseWhileStatement(): WhileNode {
+		const whileToken = this.advance();
+		this.skipNewlines();
+
+		this.consume(TokenType.LPAREN, "Expected '(' after 'while'");
+		this.skipNewlines();
+		const condition = this.parseExpression();
+		this.skipNewlines();
+		this.consume(TokenType.RPAREN, "Expected ')' after while condition");
+		this.skipNewlines();
+
+		this.consume(TokenType.LBRACE, "Expected '{' after while condition");
+		const body = this.parseStatementBlock();
+		this.consume(TokenType.RBRACE, "Expected '}' to end while loop body");
+
+		return {
+			type: "While",
+			condition,
+			body,
+			line: whileToken.line,
+			column: whileToken.column,
 		};
 	}
 

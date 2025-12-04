@@ -626,6 +626,24 @@ export class Lexer {
 			};
 		}
 
+		if (value === "for") {
+			return {
+				type: TokenType.FOR,
+				value,
+				line: startLine,
+				column: startColumn,
+			};
+		}
+
+		if (value === "while") {
+			return {
+				type: TokenType.WHILE,
+				value,
+				line: startLine,
+				column: startColumn,
+			};
+		}
+
 		return {
 			type: TokenType.NAME,
 			value,

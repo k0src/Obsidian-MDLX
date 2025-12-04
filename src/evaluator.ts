@@ -5,6 +5,8 @@ import {
 	VariableNode,
 	FunctionNode,
 	IfNode,
+	ForNode,
+	WhileNode,
 	FunctionCallNode,
 	AnonymousFunctionNode,
 	BlockNode,
@@ -137,6 +139,10 @@ export class Evaluator {
 				);
 			case "If":
 				return this.evaluateIfStatement(statement as IfNode);
+			case "For":
+				return this.evaluateForStatement(statement as ForNode);
+			case "While":
+				return this.evaluateWhileStatement(statement as WhileNode);
 			case "String":
 			case "TemplateString":
 			case "Number":
@@ -518,6 +524,82 @@ export class Evaluator {
 		}
 
 		return null;
+	}
+
+	private evaluateForStatement(node: ForNode): EvaluatedValue | null {
+		this.evaluateStatement(node.init);
+
+		const results: EvaluatedValue[] = [];
+
+		while (true) {
+			const conditionValue = this.evaluateExpression(node.condition);
+			const conditionBoolean = this.toBoolean(conditionValue.value);
+
+			if (!conditionBoolean) {
+				break;
+			}
+
+			for (const stmt of node.body) {
+				const result = this.evaluateStatement(stmt);
+				if (result !== null) {
+					results.push(result);
+				}
+			}
+
+			this.evaluateExpression(node.update);
+		}
+
+		if (results.length === 0) {
+			return null;
+		}
+
+		if (results.length === 1) {
+			return results[0];
+		}
+
+		const concatenated = results.map((r) => r.value).join(" ");
+		const isMarkdown = results.some((r) => r.isMarkdown);
+
+		return {
+			value: concatenated,
+			isMarkdown,
+		};
+	}
+
+	private evaluateWhileStatement(node: WhileNode): EvaluatedValue | null {
+		const results: EvaluatedValue[] = [];
+
+		while (true) {
+			const conditionValue = this.evaluateExpression(node.condition);
+			const conditionBoolean = this.toBoolean(conditionValue.value);
+
+			if (!conditionBoolean) {
+				break;
+			}
+
+			for (const stmt of node.body) {
+				const result = this.evaluateStatement(stmt);
+				if (result !== null) {
+					results.push(result);
+				}
+			}
+		}
+
+		if (results.length === 0) {
+			return null;
+		}
+
+		if (results.length === 1) {
+			return results[0];
+		}
+
+		const concatenated = results.map((r) => r.value).join(" ");
+		const isMarkdown = results.some((r) => r.isMarkdown);
+
+		return {
+			value: concatenated,
+			isMarkdown,
+		};
 	}
 
 	private evaluateStatementBlock(

@@ -7,6 +7,8 @@ export enum TokenType {
 
 	IF = "IF",
 	ELSE = "ELSE",
+	FOR = "FOR",
+	WHILE = "WHILE",
 
 	IDENTIFIER = "IDENTIFIER",
 	NAME = "NAME",

@@ -105,6 +105,20 @@ export interface IfNode extends ASTNode {
 	else?: StatementNode[];
 }
 
+export interface ForNode extends ASTNode {
+	type: "For";
+	init: StatementNode;
+	condition: ExpressionNode;
+	update: ExpressionNode;
+	body: StatementNode[];
+}
+
+export interface WhileNode extends ASTNode {
+	type: "While";
+	condition: ExpressionNode;
+	body: StatementNode[];
+}
+
 export type ExpressionNode =
 	| StringNode
 	| TemplateStringNode
@@ -122,6 +136,8 @@ export type StatementNode =
 	| VariableNode
 	| FunctionNode
 	| IfNode
+	| ForNode
+	| WhileNode
 	| ExpressionNode;
 
 export interface ProgramNode extends ASTNode {
