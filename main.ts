@@ -17,9 +17,35 @@ export default class MDLXPlugin extends Plugin {
 		this.renderer = new Renderer(this.app, this.styleManager);
 
 		this.registerMarkdownCodeBlockProcessor(
-			"lx",
+			"lt",
 			this.processMDLXBlock.bind(this)
 		);
+
+		// this.registerEvent(
+		// 	this.app.workspace.on("active-leaf-change", async () => {
+		// 		const activeFile = this.app.workspace.getActiveFile();
+		// 		if (activeFile) {
+		// 			await this.preProcessFile(activeFile);
+		// 		}
+		// 	})
+		// );
+
+		this.registerEvent(
+			this.app.workspace.on("file-open", async (file) => {
+				if (file) {
+					await this.preProcessFile(file);
+				}
+			})
+		);
+
+		// this.registerEvent(
+		// 	this.app.vault.on("modify", async (file) => {
+		// 		if (file instanceof TFile) {
+		// 			this.globalContexts.delete(file.path);
+		// 			await this.preProcessFile(file);
+		// 		}
+		// 	})
+		// );
 
 		this.registerEvent(
 			this.app.vault.on("delete", (file) => {
@@ -105,13 +131,51 @@ export default class MDLXPlugin extends Plugin {
 
 				await this.renderer.render(results, el, ctx.sourcePath, source);
 			} catch (error) {
-				console.error("LX processing error:", error);
+				console.error("MDLX processing error:", error);
 				this.renderer.renderError(error as Error, el);
 			}
 		})();
 
 		this.processingQueues.set(ctx.sourcePath, currentProcessing);
 		await currentProcessing;
+	}
+
+	private async preProcessFile(file: TFile): Promise<void> {
+		if (this.globalContexts.has(file.path)) {
+			return;
+		}
+
+		const content = await this.app.vault.read(file);
+		const lxBlockRegex = /```lx\n([\s\S]*?)```/g;
+		const matches = Array.from(content.matchAll(lxBlockRegex));
+
+		if (matches.length === 0) {
+			return;
+		}
+
+		const globalContext = new ExecutionContext();
+		this.globalContexts.set(file.path, globalContext);
+
+		for (const match of matches) {
+			const source = match[1];
+			try {
+				const lexer = new Lexer(source);
+				const tokens = lexer.tokenize();
+				const parser = new Parser(tokens);
+				const ast = parser.parse();
+				const evaluator = new Evaluator(globalContext);
+
+				for (const statement of ast.statements) {
+					if (statement.type === "Variable" && statement.isGlobal) {
+						evaluator.evaluateStatement(statement);
+					} else if (statement.type === "Function") {
+						evaluator.evaluateStatement(statement);
+					}
+				}
+			} catch (error) {
+				console.warn("MDLX pre-processing error:", error);
+			}
+		}
 	}
 
 	onunload() {

@@ -185,7 +185,7 @@ export class Evaluator {
 		return results;
 	}
 
-	private evaluateStatement(statement: StatementNode): EvaluatedValue | null {
+	evaluateStatement(statement: StatementNode): EvaluatedValue | null {
 		switch (statement.type) {
 			case "Variable":
 				return this.evaluateVariableDeclaration(
