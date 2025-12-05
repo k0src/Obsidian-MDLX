@@ -75,7 +75,11 @@ export class ExecutionContext {
 		if (isGlobal && this.globalContext) {
 			this.globalContext.variables.set(name, value);
 		} else {
-			this.variables.set(name, value);
+			if (this.globalContext && this.globalContext.variables.has(name)) {
+				this.globalContext.variables.set(name, value);
+			} else {
+				this.variables.set(name, value);
+			}
 		}
 	}
 
@@ -101,6 +105,10 @@ export class ExecutionContext {
 			(this.globalContext?.variables.has(name) ?? false) ||
 			(this.parent?.hasVariable(name) ?? false)
 		);
+	}
+
+	isGlobalVariable(name: string): boolean {
+		return this.globalContext?.variables.has(name) ?? false;
 	}
 
 	setFunction(
@@ -611,10 +619,16 @@ export class Evaluator {
 		const newValue =
 			node.operator === "++" ? currentNum + 1 : currentNum - 1;
 
-		this.context.setVariable(node.operand.name, {
-			value: newValue,
-			isMarkdown: true,
-		});
+		const isGlobalVar = this.context.isGlobalVariable(node.operand.name);
+
+		this.context.setVariable(
+			node.operand.name,
+			{
+				value: newValue,
+				isMarkdown: true,
+			},
+			isGlobalVar
+		);
 
 		return {
 			value: node.prefix ? newValue : currentNum,
