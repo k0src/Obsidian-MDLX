@@ -4,8 +4,12 @@ import { Parser } from "./src/parser";
 import { Evaluator, ExecutionContext } from "./src/evaluator";
 import { Renderer } from "./src/renderer";
 import { DynamicStyleManager } from "./src/styleManager";
+import { MDLXSuggest } from "./src/mdlxSuggest";
+import { MDLXSettings, DEFAULT_SETTINGS } from "./src/settings";
+import { MDLXSettingTab } from "./src/settingsTab";
 
 export default class MDLXPlugin extends Plugin {
+	settings: MDLXSettings;
 	private globalContexts: Map<string, ExecutionContext> = new Map();
 	private processingQueues: Map<string, Promise<void>> = new Map();
 	private processedBlocks: Map<string, Set<HTMLElement>> = new Map();
@@ -13,8 +17,13 @@ export default class MDLXPlugin extends Plugin {
 	private styleManager: DynamicStyleManager;
 
 	async onload() {
+		await this.loadSettings();
+
 		this.styleManager = new DynamicStyleManager();
 		this.renderer = new Renderer(this.app, this.styleManager);
+		this.registerEditorSuggest(new MDLXSuggest(this));
+
+		this.addSettingTab(new MDLXSettingTab(this.app, this));
 
 		this.registerMarkdownCodeBlockProcessor(
 			"lx",
@@ -165,5 +174,17 @@ export default class MDLXPlugin extends Plugin {
 		this.globalContexts.clear();
 		this.processedBlocks.clear();
 		this.styleManager?.cleanup();
+	}
+
+	getGlobalContext(filePath: string): ExecutionContext | undefined {
+		return this.globalContexts.get(filePath);
+	}
+
+	async loadSettings() {
+		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+	}
+
+	async saveSettings() {
+		await this.saveData(this.settings);
 	}
 }

@@ -62,3 +62,20 @@
 	margin: 0;
 	overflow-x: auto;
 }
+
+.suggestion-item.mod-complex .lx-suggest-type {
+	display: inline-block;
+	margin-left: var(--size-4-2);
+	opacity: 0.6;
+	font-size: var(--font-smaller);
+}
+
+.suggestion-container .suggestion-item {
+	padding: var(--size-2-2) var(--size-4-2);
+	font-size: var(--font-ui-small);
+	line-height: var(--line-height-tight);
+}
+
+.suggestion-container .suggestion-item > div {
+	font-size: var(--font-ui-small);
+}
