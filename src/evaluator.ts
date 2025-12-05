@@ -23,6 +23,7 @@ import {
 	BinaryOpNode,
 	UnaryOpNode,
 } from "./types/ast.types";
+import { isStdLibFunction, getStdLibFunction } from "./stdlib";
 
 export class RuntimeError extends Error {
 	constructor(message: string, public line: number, public column: number) {
@@ -736,6 +737,14 @@ export class Evaluator {
 	}
 
 	private evaluateFunctionDefinition(node: FunctionNode): null {
+		if (isStdLibFunction(node.name)) {
+			throw new RuntimeError(
+				`Cannot redefine standard library function: ${node.name}`,
+				node.line,
+				node.column
+			);
+		}
+
 		this.context.setFunction(
 			node.name,
 			{
@@ -873,6 +882,14 @@ export class Evaluator {
 	}
 
 	private evaluateFunctionCall(node: FunctionCallNode): EvaluatedValue {
+		const stdlibFunc = getStdLibFunction(node.name);
+		if (stdlibFunc) {
+			const argValues = node.args.map((arg) =>
+				this.evaluateExpression(arg)
+			);
+			return stdlibFunc(argValues, node.line, node.column);
+		}
+
 		const funcDef = this.context.getFunction(node.name);
 
 		if (!funcDef) {
