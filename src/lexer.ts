@@ -352,6 +352,8 @@ export class Lexer {
 		let value = "";
 		const parts: TemplatePart[] = [];
 		let hasTemplates = false;
+		let inMathMode = false;
+		let mathModeDouble = false;
 
 		while (!this.isAtEnd() && this.peek() !== '"') {
 			if (this.peek() === "\n") {
@@ -361,7 +363,23 @@ export class Lexer {
 					startColumn
 				);
 			}
-			if (this.peek() === "\\") {
+
+			const mathToggle = this.checkMathModeToggle(
+				inMathMode,
+				mathModeDouble
+			);
+			if (mathToggle.consumed > 0) {
+				inMathMode = mathToggle.newInMathMode;
+				mathModeDouble = mathToggle.newMathModeDouble;
+
+				for (let i = 0; i < mathToggle.consumed; i++) {
+					value += this.peek();
+					this.advance();
+				}
+				continue;
+			}
+
+			if (this.peek() === "\\" && !inMathMode) {
 				this.advance();
 
 				if (!this.isAtEnd()) {
@@ -450,6 +468,8 @@ export class Lexer {
 		let value = "";
 		const parts: TemplatePart[] = [];
 		let hasTemplates = false;
+		let inMathMode = false;
+		let mathModeDouble = false;
 
 		while (!this.isAtEnd()) {
 			if (
@@ -483,7 +503,22 @@ export class Lexer {
 				};
 			}
 
-			if (this.peek() === "\\") {
+			const mathToggle = this.checkMathModeToggle(
+				inMathMode,
+				mathModeDouble
+			);
+			if (mathToggle.consumed > 0) {
+				inMathMode = mathToggle.newInMathMode;
+				mathModeDouble = mathToggle.newMathModeDouble;
+
+				for (let i = 0; i < mathToggle.consumed; i++) {
+					value += this.peek();
+					this.advance();
+				}
+				continue;
+			}
+
+			if (this.peek() === "\\" && !inMathMode) {
 				this.advance();
 				if (!this.isAtEnd()) {
 					const escaped = this.peek();
@@ -545,17 +580,8 @@ export class Lexer {
 
 		let value = "";
 		while (!this.isAtEnd() && this.peek() !== "`") {
-			if (this.peek() === "\\") {
-				this.advance();
-				if (!this.isAtEnd()) {
-					const escaped = this.peek();
-					value += this.getEscapedChar(escaped);
-					this.advance();
-				}
-			} else {
-				value += this.peek();
-				this.advance();
-			}
+			value += this.peek();
+			this.advance();
 		}
 
 		if (this.isAtEnd()) {
@@ -731,6 +757,52 @@ export class Lexer {
 			default:
 				return char;
 		}
+	}
+
+	private checkMathModeToggle(
+		inMathMode: boolean,
+		mathModeDouble: boolean
+	): {
+		consumed: number;
+		newInMathMode: boolean;
+		newMathModeDouble: boolean;
+	} {
+		if (this.peek() === "$") {
+			if (this.peekNext() === "$") {
+				if (inMathMode && mathModeDouble) {
+					return {
+						consumed: 2,
+						newInMathMode: false,
+						newMathModeDouble: false,
+					};
+				} else if (!inMathMode) {
+					return {
+						consumed: 2,
+						newInMathMode: true,
+						newMathModeDouble: true,
+					};
+				}
+			} else {
+				if (inMathMode && !mathModeDouble) {
+					return {
+						consumed: 1,
+						newInMathMode: false,
+						newMathModeDouble: false,
+					};
+				} else if (!inMathMode) {
+					return {
+						consumed: 1,
+						newInMathMode: true,
+						newMathModeDouble: false,
+					};
+				}
+			}
+		}
+		return {
+			consumed: 0,
+			newInMathMode: inMathMode,
+			newMathModeDouble: mathModeDouble,
+		};
 	}
 
 	private skipWhitespace(): void {
