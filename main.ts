@@ -168,7 +168,10 @@ export default class MDLXPlugin extends Plugin {
 				for (const statement of ast.statements) {
 					if (statement.type === "Variable" && statement.isGlobal) {
 						evaluator.evaluateStatement(statement);
-					} else if (statement.type === "Function") {
+					} else if (
+						statement.type === "Function" &&
+						statement.isGlobal
+					) {
 						evaluator.evaluateStatement(statement);
 					}
 				}
