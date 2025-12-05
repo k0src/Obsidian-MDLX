@@ -92,6 +92,7 @@ export class Parser {
 
 			this.advance();
 			this.advance();
+			this.skipNewlines();
 
 			if (this.check(TokenType.LPAREN)) {
 				return this.parseFunctionDefinition(
@@ -131,6 +132,7 @@ export class Parser {
 
 				if (this.check(TokenType.EQUALS)) {
 					this.advance();
+					this.skipNewlines();
 					const value = this.parseExpression();
 
 					const arrayIndexNode = arrayExpr as ArrayIndexNode;
@@ -150,6 +152,7 @@ export class Parser {
 			if (nextToken?.type === TokenType.EQUALS) {
 				this.advance();
 				this.advance();
+				this.skipNewlines();
 
 				if (this.check(TokenType.LPAREN)) {
 					return this.parseFunctionDefinition(

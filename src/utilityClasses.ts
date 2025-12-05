@@ -9,8 +9,20 @@ export const UTILITY_CLASSES: { [key: string]: string } = {
 	"bg-purple": "background-color: var(--color-purple);",
 	"bg-pink": "background-color: var(--color-pink);",
 	"bg-accent": "background-color: var(--color-accent);",
-	"bg-base": "background-color: var(--color-base-20);",
 	"bg-transparent": "background-color: transparent;",
+
+	"bg-base-00": "background-color: var(--color-base-00);",
+	"bg-base-05": "background-color: var(--color-base-05);",
+	"bg-base-10": "background-color: var(--color-base-10);",
+	"bg-base": "background-color: var(--color-base-20);",
+	"bg-base-25": "background-color: var(--color-base-25);",
+	"bg-base-30": "background-color: var(--color-base-30);",
+	"bg-base-35": "background-color: var(--color-base-35);",
+	"bg-base-40": "background-color: var(--color-base-40);",
+	"bg-base-50": "background-color: var(--color-base-50);",
+	"bg-base-60": "background-color: var(--color-base-60);",
+	"bg-base-70": "background-color: var(--color-base-70);",
+	"bg-base-100": "background-color: var(--color-base-100);",
 
 	// Border colors and styles
 	brdr: "border: 1px solid;",
