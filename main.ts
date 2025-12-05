@@ -7,6 +7,11 @@ import { DynamicStyleManager } from "./src/styleManager";
 import { MDLXSuggest } from "./src/mdlxSuggest";
 import { MDLXSettings, DEFAULT_SETTINGS } from "./src/settings";
 import { MDLXSettingTab } from "./src/settingsTab";
+import {
+	addLxMode,
+	addLxSyntaxHighlight,
+	removeLxMode,
+} from "./src/syntaxHighlighting";
 
 export default class MDLXPlugin extends Plugin {
 	settings: MDLXSettings;
@@ -24,6 +29,11 @@ export default class MDLXPlugin extends Plugin {
 		this.registerEditorSuggest(new MDLXSuggest(this));
 
 		this.addSettingTab(new MDLXSettingTab(this.app, this));
+
+		addLxMode();
+		if (window.CodeMirror) {
+			addLxSyntaxHighlight(window.CodeMirror);
+		}
 
 		this.registerMarkdownCodeBlockProcessor(
 			"lx",
@@ -174,6 +184,7 @@ export default class MDLXPlugin extends Plugin {
 		this.globalContexts.clear();
 		this.processedBlocks.clear();
 		this.styleManager?.cleanup();
+		removeLxMode();
 	}
 
 	getGlobalContext(filePath: string): ExecutionContext | undefined {
@@ -181,7 +192,11 @@ export default class MDLXPlugin extends Plugin {
 	}
 
 	async loadSettings() {
-		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+		this.settings = Object.assign(
+			{},
+			DEFAULT_SETTINGS,
+			await this.loadData()
+		);
 	}
 
 	async saveSettings() {

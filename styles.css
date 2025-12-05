@@ -1,3 +1,16 @@
+:root {
+	--lx-syntax-string: #f0a7c4;
+	--lx-syntax-template-string: #f7b7d0;
+	--lx-syntax-literal-string: #eebaea;
+	--lx-syntax-number: #ff9a8c;
+	--lx-syntax-boolean: #ff7cc4;
+	--lx-syntax-keyword: #c59bff;
+	--lx-syntax-operator: #d7c7e8;
+	--lx-syntax-identifier: #cfc8d8;
+	--lx-syntax-function: #e3a5ff;
+	--lx-syntax-comment: #7a6f82;
+}
+
 .lx-container {
 	display: block;
 	width: 100%;
@@ -78,4 +91,41 @@
 
 .suggestion-container .suggestion-item > div {
 	font-size: var(--font-ui-small);
+}
+
+.cm-lx-string {
+	color: var(--lx-syntax-string);
+}
+.cm-lx-template-string {
+	color: var(--lx-syntax-template-string);
+}
+.cm-lx-literal-string {
+	color: var(--lx-syntax-literal-string);
+}
+.cm-lx-number {
+	color: var(--lx-syntax-number);
+}
+.cm-lx-boolean {
+	color: var(--lx-syntax-boolean);
+}
+.cm-lx-keyword {
+	color: var(--lx-syntax-keyword);
+	font-weight: bold;
+}
+.cm-lx-operator {
+	color: var(--lx-syntax-operator);
+}
+.cm-lx-identifier {
+	color: var(--lx-syntax-identifier);
+}
+.cm-lx-function {
+	color: var(--lx-syntax-function);
+	font-weight: 500;
+}
+.cm-lx-at {
+	color: var(--lx-syntax-function);
+}
+.cm-lx-comment {
+	color: var(--lx-syntax-comment);
+	font-style: italic;
 }
