@@ -67,7 +67,7 @@ export default class MDLXPlugin extends Plugin {
 				const evaluator = new Evaluator(blockContext);
 				const results = evaluator.evaluate(ast);
 
-				await this.renderer.render(results, el, ctx.sourcePath);
+				await this.renderer.render(results, el, ctx.sourcePath, source);
 			} catch (error) {
 				console.error("MDLX processing error:", error);
 				this.renderer.renderError(error as Error, el);

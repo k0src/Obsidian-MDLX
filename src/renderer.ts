@@ -9,11 +9,15 @@ export class Renderer {
 	async render(
 		results: EvaluatedValue[],
 		container: HTMLElement,
-		sourcePath: string
+		sourcePath: string,
+		sourceCode?: string
 	): Promise<void> {
 		container.empty();
 
 		if (results.length === 0) {
+			if (sourceCode) {
+				this.renderEmptyBlockPreview(sourceCode, container);
+			}
 			return;
 		}
 
@@ -152,6 +156,19 @@ export class Renderer {
 			return JSON.stringify(elem.value);
 		});
 		return `[${elements.join(", ")}]`;
+	}
+
+	private renderEmptyBlockPreview(
+		sourceCode: string,
+		container: HTMLElement
+	): void {
+		const pre = container.createEl("pre", {
+			cls: "lx-empty-block-preview",
+		});
+
+		const code = pre.createEl("code");
+		const trunc = sourceCode.replace(/\n/g, " ").trim();
+		code.textContent = trunc;
 	}
 
 	renderError(error: Error, container: HTMLElement): void {

@@ -41,6 +41,20 @@
 	border: 1px solid var(--text-error) !important;
 }
 
+.lx-empty-block-preview {
+	background-color: var(--code-background);
+	border-radius: var(--radius-s);
+	margin: var(--size-4-2) 0;
+}
+
+.lx-empty-block-preview code {
+	font-family: var(--font-monospace);
+	display: block;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
 .lx-error-message {
 	font-family: var(--font-monospace);
 	font-size: var(--code-size);
