@@ -5,40 +5,31 @@
 	margin: var(--size-4-2) 0;
 }
 
-.lx-markdown {
+.lx-markdown-output {
+	display: block;
+}
+
+.lx-markdown-output > :first-child {
 	margin-top: 0;
 }
 
-.lx-markdown > :first-child {
-	margin-top: 0;
-}
-
-.lx-markdown > :last-child {
+.lx-markdown-output > :last-child {
 	margin-bottom: 0;
 }
 
-.lx-literal {
+.lx-literal-output {
 	background-color: var(--code-background);
 	border-radius: var(--radius-s);
 	margin: var(--size-4-2) 0;
 	overflow-x: auto;
 }
 
-.lx-literal code {
+.lx-literal-output code {
 	background: transparent;
 	padding: 0;
 	font-family: var(--font-monospace);
 	font-size: var(--code-size);
 	color: var(--code-normal);
-}
-
-.lx-error {
-	margin: var(--size-4-2) 0;
-	border-radius: var(--radius-s);
-}
-
-.lx-error pre {
-	border: 1px solid var(--text-error) !important;
 }
 
 .lx-empty-block-preview {
@@ -53,6 +44,15 @@
 	white-space: nowrap;
 	overflow: hidden;
 	text-overflow: ellipsis;
+}
+
+.lx-error {
+	margin: var(--size-4-2) 0;
+	border-radius: var(--radius-s);
+}
+
+.lx-error pre {
+	border: 1px solid var(--text-error) !important;
 }
 
 .lx-error-message {

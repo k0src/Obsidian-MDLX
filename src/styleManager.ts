@@ -8,7 +8,7 @@ export class DynamicStyleManager {
 
 	private createStyleElement(): void {
 		this.styleElement = document.createElement("style");
-		this.styleElement.id = "lt-dynamic-styles";
+		this.styleElement.id = "lx-dynamic-styles";
 		document.head.appendChild(this.styleElement);
 	}
 

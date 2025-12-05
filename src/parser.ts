@@ -217,9 +217,7 @@ export class Parser {
 		this.consume(TokenType.RPAREN, "Expected ')' after if condition");
 		this.skipNewlines();
 
-		this.consume(TokenType.LBRACE, "Expected '{' after if condition");
-		const then = this.parseStatementBlock();
-		this.consume(TokenType.RBRACE, "Expected '}' to end if block");
+		const then = this.parseBlockOrStatement();
 		this.skipNewlines();
 
 		const elseIfs: Array<{
@@ -246,25 +244,12 @@ export class Parser {
 				);
 				this.skipNewlines();
 
-				this.consume(
-					TokenType.LBRACE,
-					"Expected '{' after else if condition"
-				);
-				const elseIfThen = this.parseStatementBlock();
-				this.consume(
-					TokenType.RBRACE,
-					"Expected '}' to end else if block"
-				);
+				const elseIfThen = this.parseBlockOrStatement();
 				this.skipNewlines();
 
 				elseIfs.push({ condition: elseIfCondition, then: elseIfThen });
 			} else {
-				this.consume(TokenType.LBRACE, "Expected '{' after 'else'");
-				elseBlock = this.parseStatementBlock();
-				this.consume(
-					TokenType.RBRACE,
-					"Expected '}' to end else block"
-				);
+				elseBlock = this.parseBlockOrStatement();
 				break;
 			}
 		}
@@ -315,9 +300,7 @@ export class Parser {
 		this.consume(TokenType.RPAREN, "Expected ')' after for loop header");
 		this.skipNewlines();
 
-		this.consume(TokenType.LBRACE, "Expected '{' after for loop header");
-		const body = this.parseStatementBlock();
-		this.consume(TokenType.RBRACE, "Expected '}' to end for loop body");
+		const body = this.parseBlockOrStatement();
 
 		return {
 			type: "For",
@@ -341,9 +324,7 @@ export class Parser {
 		this.consume(TokenType.RPAREN, "Expected ')' after while condition");
 		this.skipNewlines();
 
-		this.consume(TokenType.LBRACE, "Expected '{' after while condition");
-		const body = this.parseStatementBlock();
-		this.consume(TokenType.RBRACE, "Expected '}' to end while loop body");
+		const body = this.parseBlockOrStatement();
 
 		return {
 			type: "While",
@@ -378,6 +359,18 @@ export class Parser {
 			line: arrowToken.line,
 			column: arrowToken.column,
 		};
+	}
+
+	private parseBlockOrStatement(): StatementNode[] {
+		if (this.check(TokenType.LBRACE)) {
+			this.advance();
+			const statements = this.parseStatementBlock();
+			this.consume(TokenType.RBRACE, "Expected '}' to end block");
+			return statements;
+		} else {
+			const stmt = this.parseStatement();
+			return stmt ? [stmt] : [];
+		}
 	}
 
 	private parseStatementBlock(): StatementNode[] {

@@ -887,6 +887,7 @@ export class Evaluator {
 			const argValues = node.args.map((arg) =>
 				this.evaluateExpression(arg)
 			);
+
 			return stdlibFunc(argValues, node.line, node.column);
 		}
 

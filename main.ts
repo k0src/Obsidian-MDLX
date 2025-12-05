@@ -17,18 +17,9 @@ export default class MDLXPlugin extends Plugin {
 		this.renderer = new Renderer(this.app, this.styleManager);
 
 		this.registerMarkdownCodeBlockProcessor(
-			"lt",
+			"lx",
 			this.processMDLXBlock.bind(this)
 		);
-
-		// this.registerEvent(
-		// 	this.app.workspace.on("active-leaf-change", async () => {
-		// 		const activeFile = this.app.workspace.getActiveFile();
-		// 		if (activeFile) {
-		// 			await this.preProcessFile(activeFile);
-		// 		}
-		// 	})
-		// );
 
 		this.registerEvent(
 			this.app.workspace.on("file-open", async (file) => {
@@ -37,15 +28,6 @@ export default class MDLXPlugin extends Plugin {
 				}
 			})
 		);
-
-		// this.registerEvent(
-		// 	this.app.vault.on("modify", async (file) => {
-		// 		if (file instanceof TFile) {
-		// 			this.globalContexts.delete(file.path);
-		// 			await this.preProcessFile(file);
-		// 		}
-		// 	})
-		// );
 
 		this.registerEvent(
 			this.app.vault.on("delete", (file) => {
@@ -89,9 +71,6 @@ export default class MDLXPlugin extends Plugin {
 		if (!blocks) {
 			blocks = new Set();
 			this.processedBlocks.set(ctx.sourcePath, blocks);
-
-			this.globalContexts.delete(ctx.sourcePath);
-			this.processingQueues.delete(ctx.sourcePath);
 		}
 
 		const isReRender = blocks.has(el);
