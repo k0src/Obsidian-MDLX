@@ -185,7 +185,7 @@ export class Evaluator {
 		return results;
 	}
 
-	evaluateStatement(statement: StatementNode): EvaluatedValue | null {
+	public evaluateStatement(statement: StatementNode): EvaluatedValue | null {
 		switch (statement.type) {
 			case "Variable":
 				return this.evaluateVariableDeclaration(
@@ -337,34 +337,52 @@ export class Evaluator {
 		const arrayValue = this.evaluateExpression(node.array);
 		const indexValue = this.evaluateExpression(node.index);
 
-		if (!Array.isArray(arrayValue.value)) {
-			throw new RuntimeError(
-				`Cannot index non-array value (got ${typeof arrayValue.value})`,
-				node.line,
-				node.column
-			);
-		}
-
 		if (typeof indexValue.value !== "number") {
 			throw new RuntimeError(
-				`Array index must be a number (got ${typeof indexValue.value})`,
+				`Index must be a number (got ${typeof indexValue.value})`,
 				node.line,
 				node.column
 			);
 		}
 
 		const index = Math.floor(indexValue.value);
-		const array = arrayValue.value as EvaluatedValue[];
 
-		if (index < 0 || index >= array.length) {
-			throw new RuntimeError(
-				`Array index out of bounds: ${index} (array length: ${array.length})`,
-				node.line,
-				node.column
-			);
+		if (Array.isArray(arrayValue.value)) {
+			const array = arrayValue.value as EvaluatedValue[];
+
+			if (index < 0 || index >= array.length) {
+				throw new RuntimeError(
+					`Array index out of bounds: ${index} (array length: ${array.length})`,
+					node.line,
+					node.column
+				);
+			}
+
+			return array[index];
 		}
 
-		return array[index];
+		if (typeof arrayValue.value === "string") {
+			const str = arrayValue.value as string;
+
+			if (index < 0 || index >= str.length) {
+				throw new RuntimeError(
+					`String index out of bounds: ${index} (string length: ${str.length})`,
+					node.line,
+					node.column
+				);
+			}
+
+			return {
+				value: str[index],
+				isMarkdown: arrayValue.isMarkdown,
+			};
+		}
+
+		throw new RuntimeError(
+			`Cannot index ${typeof arrayValue.value} (only arrays and strings can be indexed)`,
+			node.line,
+			node.column
+		);
 	}
 
 	private evaluateArrayIndexAssignment(node: ArrayIndexAssignmentNode): null {
@@ -372,26 +390,18 @@ export class Evaluator {
 
 		if (node.array.type !== "Identifier") {
 			throw new RuntimeError(
-				`Can only assign to array variable, not expression`,
+				`Can only assign to variable, not expression`,
 				node.line,
 				node.column
 			);
 		}
 
-		const arrayName = (node.array as IdentifierNode).name;
-		const arrayValue = this.context.getVariable(arrayName);
+		const varName = (node.array as IdentifierNode).name;
+		const varValue = this.context.getVariable(varName);
 
-		if (arrayValue === undefined) {
+		if (varValue === undefined) {
 			throw new RuntimeError(
-				`Undefined variable: ${arrayName}`,
-				node.line,
-				node.column
-			);
-		}
-
-		if (!Array.isArray(arrayValue.value)) {
-			throw new RuntimeError(
-				`Cannot index non-array value (got ${typeof arrayValue.value})`,
+				`Undefined variable: ${varName}`,
 				node.line,
 				node.column
 			);
@@ -401,26 +411,70 @@ export class Evaluator {
 
 		if (typeof indexValue.value !== "number") {
 			throw new RuntimeError(
-				`Array index must be a number (got ${typeof indexValue.value})`,
+				`Index must be a number (got ${typeof indexValue.value})`,
 				node.line,
 				node.column
 			);
 		}
 
 		const index = Math.floor(indexValue.value);
-		const array = arrayValue.value as EvaluatedValue[];
 
-		if (index < 0 || index >= array.length) {
-			throw new RuntimeError(
-				`Array index out of bounds: ${index} (array length: ${array.length})`,
-				node.line,
-				node.column
-			);
+		if (Array.isArray(varValue.value)) {
+			const array = varValue.value as EvaluatedValue[];
+
+			if (index < 0 || index >= array.length) {
+				throw new RuntimeError(
+					`Array index out of bounds: ${index} (array length: ${array.length})`,
+					node.line,
+					node.column
+				);
+			}
+
+			array[index] = value;
+			return null;
 		}
 
-		array[index] = value;
+		if (typeof varValue.value === "string") {
+			const str = varValue.value as string;
 
-		return null;
+			if (index < 0 || index >= str.length) {
+				throw new RuntimeError(
+					`String index out of bounds: ${index} (string length: ${str.length})`,
+					node.line,
+					node.column
+				);
+			}
+
+			if (typeof value.value !== "string") {
+				throw new RuntimeError(
+					`Cannot assign ${typeof value.value} to string index (must be string)`,
+					node.line,
+					node.column
+				);
+			}
+
+			const newStr =
+				str.substring(0, index) +
+				value.value +
+				str.substring(index + 1);
+
+			const isGlobal = this.context.isGlobalVariable(varName);
+			this.context.setVariable(
+				varName,
+				{
+					value: newStr,
+					isMarkdown: varValue.isMarkdown,
+				},
+				isGlobal
+			);
+			return null;
+		}
+
+		throw new RuntimeError(
+			`Cannot index ${typeof varValue.value} (only arrays and strings can be indexed)`,
+			node.line,
+			node.column
+		);
 	}
 
 	private evaluateIdentifier(node: IdentifierNode): EvaluatedValue {
